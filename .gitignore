@@ -1,0 +1,17 @@
+node_modules/
+
+# Environment files — real secrets live only on each machine/server,
+# never in git. .env.example is the tracked template.
+.env
+.env.*
+!.env.example
+
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# User-uploaded product images live on disk, not in git —
+# keep the directory structure with .gitkeep but ignore its contents.
+public/uploads/**/*
+!public/uploads/**/.gitkeep

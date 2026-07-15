@@ -1,0 +1,17 @@
+import { z } from 'zod';
+
+export const switchRoleSchema = z.object({
+  role: z.enum(['buyer', 'seller'], { message: 'Role must be buyer or seller' }),
+});
+
+export const sellerApplySchema = z.object({
+  storeName:     z.string().trim().min(1, 'Store name is required'),
+  description:   z.string().trim().optional(),
+  bankName:      z.string().trim().optional(),
+  accountNumber: z.string().trim().optional(),
+  accountName:   z.string().trim().optional(),
+});
+
+export const updateProfileSchema = z.object({
+  fullName: z.string().trim().min(1).optional(),
+});
