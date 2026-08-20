@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Offer from './offer.model.js';
 import Product from '../products/product.model.js';
 import { createOrderFromOffer } from '../orders/orders.service.js';
+import { recordOfferEvent } from '../chat/chat.service.js';
 
 const OPEN_OFFER_STATUSES = ['pending', 'countered'];
 
@@ -146,6 +147,8 @@ export async function createOffer(req, res, next) {
       history: [{ proposedBy: 'buyer', user: req.user._id, price }],
     });
 
+    await recordOfferEvent({ offer, action: 'submitted' });
+
     res.status(201).json({ message: 'Offer submitted to seller', offer });
   } catch (err) {
     next(err);
@@ -211,6 +214,7 @@ export async function counterOffer(req, res, next) {
     offer.history.push({ proposedBy: actorRole, user: req.user._id, price: req.body.price });
 
     await offer.save();
+    await recordOfferEvent({ offer, action: 'countered' });
     res.json({ message: 'Counter offer submitted', offer });
   } catch (err) {
     next(err);
@@ -249,6 +253,7 @@ export async function acceptOffer(req, res, next) {
     offer.status = 'accepted';
     offer.acceptedAt = new Date();
     await offer.save();
+    await recordOfferEvent({ offer, action: 'accepted' });
 
     await Offer.updateMany(
       {
@@ -289,6 +294,7 @@ export async function rejectOffer(req, res, next) {
     offer.status = 'rejected';
     offer.rejectedAt = new Date();
     await offer.save();
+    await recordOfferEvent({ offer, action: 'rejected' });
 
     res.json({ message: 'Offer rejected', offer });
   } catch (err) {

@@ -6,10 +6,29 @@ const productImageSchema = new mongoose.Schema({
   alt: { type: String, trim: true },
 }, { _id: false });
 
+const productMediaSchema = new mongoose.Schema({
+  type: { type: String, enum: ['image', 'video'], required: true },
+  url: { type: String, required: true, trim: true },
+  publicId: { type: String, trim: true },
+  alt: { type: String, trim: true },
+  mimeType: { type: String, required: true, trim: true },
+  sizeBytes: { type: Number, required: true, min: 0, max: 15 * 1024 * 1024 },
+  durationSeconds: { type: Number, min: 0, max: 20 },
+}, { _id: false });
+
 const deliverySchema = new mongoose.Schema({
-  cost: { type: Number, required: true, min: 0 },
-  option: { type: String, required: true, trim: true },
-  estimatedDays: { type: String, required: true, trim: true },
+  mode: {
+    type: String,
+    enum: ['seller_included', 'buyer_pays_externally'],
+    required: true,
+    default: 'buyer_pays_externally',
+  },
+  estimatedDays: { type: String, trim: true },
+  details: { type: String, trim: true, maxlength: 500 },
+  // Compatibility only for listings created before the delivery-policy change.
+  // These values are never included in Pricem checkout totals.
+  cost: { type: Number, min: 0, select: false },
+  option: { type: String, trim: true, select: false },
 }, { _id: false });
 
 const variantOptionSchema = new mongoose.Schema({
@@ -59,13 +78,12 @@ const productSchema = new mongoose.Schema({
   coverImage: { type: productImageSchema, required: true },
   images: {
     type: [productImageSchema],
-    validate: {
-      validator(images) {
-        return images.length <= 10;
-      },
-      message: 'A product can have at most 10 images',
-    },
     default: [],
+  },
+  media: {
+    type: [productMediaSchema],
+    default: [],
+    validate: { validator: (media) => media.length <= 7, message: 'Add at most 7 gallery files; the cover makes 8 total' },
   },
 
   delivery: { type: deliverySchema, required: true },

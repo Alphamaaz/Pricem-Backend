@@ -1,5 +1,6 @@
 import Product from '../products/product.model.js';
 import Order from './order.model.js';
+import { ensureOrderWorkspaceForOrder } from '../chat/chat.service.js';
 
 function variantMatches(option, selection) {
   return option.value === selection.value;
@@ -97,19 +98,28 @@ export async function createOrderFromOffer(offer, shippingAddress) {
     lineTotal: offer.currentPrice,
   };
 
-  const deliveryTotal = product.delivery?.cost ?? 0;
+  const deliveryMode = product.delivery?.mode ?? 'buyer_pays_externally';
 
-  return Order.create({
+  const order = await Order.create({
     buyer: offer.buyer,
     seller: offer.seller,
     source: 'offer',
     offer: offer._id,
     items: [item],
     subtotal: item.lineTotal,
-    deliveryTotal,
-    total: item.lineTotal + deliveryTotal,
+    deliveryTotal: 0,
+    total: item.lineTotal,
+    deliveryPolicy: {
+      mode: deliveryMode,
+      estimatedDays: product.delivery?.estimatedDays,
+      details: product.delivery?.details,
+      externalPaymentNotice: deliveryMode === 'buyer_pays_externally',
+    },
+    timeline: [{ type: 'order_created', actorRole: 'system', message: 'Order created from accepted offer.' }],
     shippingAddress,
   });
+  await ensureOrderWorkspaceForOrder(order);
+  return order;
 }
 
 export async function createOrdersFromCart(cart, shippingAddress) {
@@ -139,11 +149,15 @@ export async function createOrdersFromCart(cart, shippingAddress) {
 
     // One delivery fee per seller shipment — the highest cost among their items
     const sellerDeliveryKey = String(cartItem.seller);
-    const productDeliveryCost = product.delivery?.cost ?? 0;
-    deliveryBySeller.set(
-      sellerDeliveryKey,
-      Math.max(deliveryBySeller.get(sellerDeliveryKey) ?? 0, productDeliveryCost),
-    );
+    const deliveryMode = product.delivery?.mode ?? 'buyer_pays_externally';
+    const currentPolicy = deliveryBySeller.get(sellerDeliveryKey);
+    deliveryBySeller.set(sellerDeliveryKey, {
+      mode: currentPolicy?.mode === 'buyer_pays_externally' || deliveryMode === 'buyer_pays_externally'
+        ? 'buyer_pays_externally'
+        : 'seller_included',
+      estimatedDays: currentPolicy?.estimatedDays || product.delivery?.estimatedDays,
+      details: currentPolicy?.details || product.delivery?.details,
+    });
 
     const item = {
       product: cartItem.product,
@@ -168,17 +182,24 @@ export async function createOrdersFromCart(cart, shippingAddress) {
   const orders = [];
   for (const [sellerId, items] of ordersBySeller.entries()) {
     const subtotal = items.reduce((total, item) => total + item.lineTotal, 0);
-    const deliveryTotal = deliveryBySeller.get(sellerId) ?? 0;
-    orders.push(await Order.create({
+    const deliveryPolicy = deliveryBySeller.get(sellerId) ?? { mode: 'buyer_pays_externally' };
+    const order = await Order.create({
       buyer: cart.user,
       seller: sellerId,
       source: 'cart',
       items,
       subtotal,
-      deliveryTotal,
-      total: subtotal + deliveryTotal,
+      deliveryTotal: 0,
+      total: subtotal,
+      deliveryPolicy: {
+        ...deliveryPolicy,
+        externalPaymentNotice: deliveryPolicy.mode === 'buyer_pays_externally',
+      },
+      timeline: [{ type: 'order_created', actorRole: 'system', message: 'Order created from cart checkout.' }],
       shippingAddress,
-    }));
+    });
+    await ensureOrderWorkspaceForOrder(order);
+    orders.push(order);
   }
 
   cart.items = [];

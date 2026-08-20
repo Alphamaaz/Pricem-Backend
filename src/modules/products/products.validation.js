@@ -17,6 +17,20 @@ const imageSchema = z.object({
   alt: z.string().trim().optional(),
 });
 
+const mediaSchema = z.object({
+  type: z.enum(['image', 'video']),
+  url: imageUrlSchema,
+  publicId: z.string().trim().optional(),
+  alt: z.string().trim().optional(),
+  mimeType: z.string().trim().min(1),
+  sizeBytes: z.coerce.number().int().min(0).max(15 * 1024 * 1024),
+  durationSeconds: z.coerce.number().min(0).max(20).optional(),
+}).superRefine((media, ctx) => {
+  if (media.type === 'video' && media.durationSeconds === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['durationSeconds'], message: 'Video duration is required' });
+  }
+});
+
 const booleanQuerySchema = z.preprocess((value) => {
   if (value === 'true') return true;
   if (value === 'false') return false;
@@ -60,10 +74,11 @@ const productFieldsSchema = z.object({
   description: z.string().trim().min(1, 'Description is required'),
   variants: variantsSchema,
   coverImage: imageSchema,
-  images: z.array(imageSchema).max(10, 'A product can have at most 10 images').optional(),
-  deliveryCost: z.coerce.number().min(0, 'Delivery cost cannot be negative'),
-  deliveryOption: z.string().trim().min(1, 'Delivery option is required'),
-  estimatedDeliveryDays: z.string().trim().min(1, 'Estimated delivery days is required'),
+  images: z.array(imageSchema).optional(),
+  media: z.array(mediaSchema).max(7, 'Add at most 7 gallery files; the cover makes 8 total').optional(),
+  deliveryMode: z.enum(['seller_included', 'buyer_pays_externally']),
+  estimatedDeliveryDays: z.string().trim().max(100).optional(),
+  deliveryDetails: z.string().trim().max(500).optional(),
 });
 
 export const createProductSchema = productFieldsSchema.superRefine((data, ctx) => {

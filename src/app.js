@@ -4,9 +4,13 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { rateLimit } from 'express-rate-limit';
+import { paystackWebhook } from './modules/payments/payments.controller.js';
 
 const app = express();
+const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../public');
 
 // Behind Hostinger's Nginx reverse proxy — needed so express-rate-limit and
 // req.ip read the real client IP from X-Forwarded-For instead of the proxy's.
@@ -34,6 +38,9 @@ app.use(cors({
   credentials: true,
 }));
 app.use(compression());
+// Paystack signatures are computed from the exact raw request bytes. This route
+// must be registered before express.json() transforms the body.
+app.post('/api/v1/payments/webhook', express.raw({ type: 'application/json', limit: '1mb' }), paystackWebhook);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -45,13 +52,22 @@ if (process.env.NODE_ENV === 'development') {
 // Global rate limit
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  // A modern storefront legitimately makes several authenticated requests per
+  // session. Real-time updates use Socket.IO; this remains an abuse ceiling.
+  max: process.env.NODE_ENV === 'development' ? 5000 : 600,
   standardHeaders: true,
   legacyHeaders: false,
 }));
 
 // Static files
-app.use(express.static('public'));
+app.use(express.static(publicDir));
+// Legacy database records may reference uploads removed from local disk. Return
+// a stable placeholder instead of repeated broken-image 404 responses.
+app.get('/uploads/products/:filename', (_req, res) => {
+  res.set('X-Asset-Fallback', 'missing-product-media');
+  res.set('Cache-Control', 'public, max-age=300');
+  res.sendFile(path.join(publicDir, 'product-placeholder.svg'));
+});
 
 // Health check
 app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
@@ -65,8 +81,11 @@ import cartRoutes from './modules/cart/cart.routes.js';
 import wishlistRoutes from './modules/wishlist/wishlist.routes.js';
 import offersRoutes from './modules/offers/offers.routes.js';
 import ordersRoutes from './modules/orders/orders.routes.js';
-// import chatRoutes from './modules/chat/chat.routes.js';
-// import paymentsRoutes from './modules/payments/payments.routes.js';
+import chatRoutes from './modules/chat/chat.routes.js';
+import paymentsRoutes from './modules/payments/payments.routes.js';
+import disputesRoutes from './modules/disputes/disputes.routes.js';
+import payoutsRoutes from './modules/payouts/payouts.routes.js';
+import notificationsRoutes from './modules/notifications/notifications.routes.js';
 
 app.use('/api/v1/auth',  authRoutes);
 app.use('/api/v1/users', usersRoutes);
@@ -76,8 +95,11 @@ app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/wishlist', wishlistRoutes);
 app.use('/api/v1/offers', offersRoutes);
 app.use('/api/v1/orders', ordersRoutes);
-// app.use('/api/v1/chat',     chatRoutes);
-// app.use('/api/v1/payments', paymentsRoutes);
+app.use('/api/v1/chat', chatRoutes);
+app.use('/api/v1/payments', paymentsRoutes);
+app.use('/api/v1/disputes', disputesRoutes);
+app.use('/api/v1/payouts', payoutsRoutes);
+app.use('/api/v1/notifications', notificationsRoutes);
 
 // 404
 app.use((_req, res) => res.status(404).json({ message: 'Route not found' }));

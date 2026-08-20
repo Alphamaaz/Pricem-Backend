@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Product from './product.model.js';
+import Conversation from '../chat/conversation.model.js';
 
 function isApprovedSeller(user) {
   return (
@@ -52,18 +53,23 @@ function buildProductPayload(body, user, existingProduct) {
   if (body.description !== undefined) payload.description = body.description;
   if (body.coverImage !== undefined) payload.coverImage = body.coverImage;
   if (body.images !== undefined) payload.images = body.images;
+  if (body.media !== undefined) {
+    payload.media = existingProduct?.media?.length
+      ? [...existingProduct.media.map((item) => item.toObject?.() ?? item), ...body.media]
+      : body.media;
+  }
   if (body.status !== undefined) payload.status = body.status;
   if (body.isFeatured !== undefined) payload.isFeatured = body.isFeatured;
 
   if (
-    body.deliveryCost !== undefined ||
-    body.deliveryOption !== undefined ||
-    body.estimatedDeliveryDays !== undefined
+    body.deliveryMode !== undefined ||
+    body.estimatedDeliveryDays !== undefined ||
+    body.deliveryDetails !== undefined
   ) {
     payload.delivery = {
-      cost: body.deliveryCost ?? existingProduct?.delivery?.cost,
-      option: body.deliveryOption ?? existingProduct?.delivery?.option,
+      mode: body.deliveryMode ?? existingProduct?.delivery?.mode ?? 'buyer_pays_externally',
       estimatedDays: body.estimatedDeliveryDays ?? existingProduct?.delivery?.estimatedDays,
+      details: body.deliveryDetails ?? existingProduct?.delivery?.details,
     };
   }
 
@@ -200,6 +206,11 @@ export async function updateProduct(req, res, next) {
 
     const product = await Product.findOne({ _id: req.params.id, seller: req.user._id }).select('+minPrice');
     if (!product) return res.status(404).json({ message: 'Product not found' });
+    const incomingMediaCount = req.body.media?.length || 0;
+    const existingMediaCount = product.media?.length || product.images?.length || 0;
+    if (incomingMediaCount > 0 && existingMediaCount + incomingMediaCount > 7) {
+      return res.status(422).json({ message: `A listing can contain at most 8 media files including its cover. You can add ${Math.max(0, 7 - existingMediaCount)} more.` });
+    }
 
     const productHasVariants = Array.isArray(product.variants) && product.variants.length > 0;
     const updatingVariants = req.body.variants !== undefined;
@@ -250,6 +261,10 @@ export async function deleteProduct(req, res, next) {
 
     product.status = 'inactive';
     await product.save();
+    await Conversation.updateMany(
+      { product: product._id, scope: 'listing', status: 'open' },
+      { $set: { status: 'closed' } },
+    );
 
     res.json({ message: 'Product removed successfully' });
   } catch (err) {

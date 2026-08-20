@@ -16,6 +16,7 @@ const offerSchema = new mongoose.Schema({
   product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
   buyer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   seller: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  conversation: { type: mongoose.Schema.Types.ObjectId, ref: 'Conversation', index: true },
 
   productTitle: { type: String, required: true, trim: true },
   storeName: { type: String, required: true, trim: true },
