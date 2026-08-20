@@ -2,10 +2,11 @@ import Cart from '../cart/cart.model.js';
 import Wishlist from '../wishlist/wishlist.model.js';
 import Order from '../orders/order.model.js';
 import Conversation from '../chat/conversation.model.js';
+import Offer from '../offers/offer.model.js';
 
 export async function getNavigationSummary(req, res, next) {
   try {
-    const [cart, wishlist, activeOrders, conversations] = await Promise.all([
+    const [cart, wishlist, activeOrders, conversations, unreadOffers] = await Promise.all([
       Cart.findOne({ user: req.user._id }).select('items.quantity').lean(),
       Wishlist.findOne({ user: req.user._id }).select('items').lean(),
       Order.countDocuments({
@@ -14,6 +15,12 @@ export async function getNavigationSummary(req, res, next) {
       }),
       Conversation.find({ $or: [{ buyer: req.user._id }, { seller: req.user._id }] })
         .select('buyer buyerUnreadCount sellerUnreadCount').lean(),
+      Offer.countDocuments({
+        $or: [
+          { buyer: req.user._id, buyerUnread: true },
+          { seller: req.user._id, sellerUnread: true },
+        ],
+      }),
     ]);
     const unreadMessages = conversations.reduce((total, conversation) => (
       total + (String(conversation.buyer) === String(req.user._id)
@@ -26,6 +33,7 @@ export async function getNavigationSummary(req, res, next) {
       wishlist: wishlist?.items?.length || 0,
       orders: activeOrders,
       messages: unreadMessages,
+      offers: unreadOffers,
     });
   } catch (err) {
     next(err);

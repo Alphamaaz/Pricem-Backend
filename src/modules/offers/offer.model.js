@@ -39,6 +39,8 @@ const offerSchema = new mongoose.Schema({
   },
   lastProposedBy: { type: String, enum: ['buyer', 'seller'], required: true },
   history: { type: [offerHistorySchema], required: true },
+  buyerUnread: { type: Boolean, default: false, index: true },
+  sellerUnread: { type: Boolean, default: false, index: true },
 
   acceptedAt: Date,
   rejectedAt: Date,
@@ -46,6 +48,8 @@ const offerSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 offerSchema.index({ product: 1, buyer: 1, seller: 1, variantKey: 1, status: 1 });
+offerSchema.index({ buyer: 1, buyerUnread: 1 });
+offerSchema.index({ seller: 1, sellerUnread: 1 });
 
 const Offer = mongoose.model('Offer', offerSchema);
 export default Offer;

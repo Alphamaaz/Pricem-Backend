@@ -15,6 +15,10 @@ export const counterOfferSchema = z.object({
   price: z.coerce.number().min(1, 'Counter price must be greater than 0'),
 });
 
+export const markOffersReadSchema = z.object({
+  role: z.enum(['buyer', 'seller']),
+});
+
 export const listOffersQuerySchema = z.object({
   role: z.enum(['buyer', 'seller']).optional(),
   status: z.enum(['pending', 'countered', 'accepted', 'rejected', 'expired']).optional(),

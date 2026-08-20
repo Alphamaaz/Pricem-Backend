@@ -3,6 +3,7 @@ import Offer from './offer.model.js';
 import Product from '../products/product.model.js';
 import { createOrderFromOffer } from '../orders/orders.service.js';
 import { recordOfferEvent } from '../chat/chat.service.js';
+import { emitToUser } from '../../config/socket.js';
 
 const OPEN_OFFER_STATUSES = ['pending', 'countered'];
 
@@ -89,6 +90,11 @@ function assertOpenOffer(offer, res) {
   return true;
 }
 
+function notifyOfferRecipient(userId, offer, action) {
+  emitToUser(userId, 'offer:changed', { offerId: String(offer._id), action });
+  emitToUser(userId, 'badges:changed', { reason: 'offer' });
+}
+
 // POST /api/v1/offers
 export async function createOffer(req, res, next) {
   try {
@@ -144,10 +150,12 @@ export async function createOffer(req, res, next) {
       currentPrice: price,
       status: 'pending',
       lastProposedBy: 'buyer',
+      sellerUnread: true,
       history: [{ proposedBy: 'buyer', user: req.user._id, price }],
     });
 
     await recordOfferEvent({ offer, action: 'submitted' });
+    notifyOfferRecipient(offer.seller, offer, 'submitted');
 
     res.status(201).json({ message: 'Offer submitted to seller', offer });
   } catch (err) {
@@ -174,6 +182,23 @@ export async function listOffers(req, res, next) {
     ]);
 
     res.json({ offers, total, page, pages: Math.ceil(total / limit) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/v1/offers/read
+export async function markOffersRead(req, res, next) {
+  try {
+    const { role } = req.body;
+    const participantField = role === 'buyer' ? 'buyer' : 'seller';
+    const unreadField = role === 'buyer' ? 'buyerUnread' : 'sellerUnread';
+    const result = await Offer.updateMany(
+      { [participantField]: req.user._id, [unreadField]: true },
+      { $set: { [unreadField]: false } },
+    );
+    emitToUser(req.user._id, 'badges:changed', { reason: 'offers-read' });
+    res.json({ message: 'Offers marked as read', updated: result.modifiedCount });
   } catch (err) {
     next(err);
   }
@@ -211,10 +236,13 @@ export async function counterOffer(req, res, next) {
     offer.currentPrice = req.body.price;
     offer.status = 'countered';
     offer.lastProposedBy = actorRole;
+    offer.buyerUnread = actorRole === 'seller';
+    offer.sellerUnread = actorRole === 'buyer';
     offer.history.push({ proposedBy: actorRole, user: req.user._id, price: req.body.price });
 
     await offer.save();
     await recordOfferEvent({ offer, action: 'countered' });
+    notifyOfferRecipient(actorRole === 'buyer' ? offer.seller : offer.buyer, offer, 'countered');
     res.json({ message: 'Counter offer submitted', offer });
   } catch (err) {
     next(err);
@@ -252,8 +280,11 @@ export async function acceptOffer(req, res, next) {
 
     offer.status = 'accepted';
     offer.acceptedAt = new Date();
+    offer.buyerUnread = actorRole === 'seller';
+    offer.sellerUnread = actorRole === 'buyer';
     await offer.save();
     await recordOfferEvent({ offer, action: 'accepted' });
+    notifyOfferRecipient(actorRole === 'buyer' ? offer.seller : offer.buyer, offer, 'accepted');
 
     await Offer.updateMany(
       {
@@ -293,8 +324,11 @@ export async function rejectOffer(req, res, next) {
 
     offer.status = 'rejected';
     offer.rejectedAt = new Date();
+    offer.buyerUnread = actorRole === 'seller';
+    offer.sellerUnread = actorRole === 'buyer';
     await offer.save();
     await recordOfferEvent({ offer, action: 'rejected' });
+    notifyOfferRecipient(actorRole === 'buyer' ? offer.seller : offer.buyer, offer, 'rejected');
 
     res.json({ message: 'Offer rejected', offer });
   } catch (err) {

@@ -5,6 +5,7 @@ import {
   createOfferSchema,
   counterOfferSchema,
   listOffersQuerySchema,
+  markOffersReadSchema,
 } from './offers.validation.js';
 import {
   createOffer,
@@ -12,6 +13,7 @@ import {
   counterOffer,
   acceptOffer,
   rejectOffer,
+  markOffersRead,
 } from './offers.controller.js';
 
 const router = Router();
@@ -20,6 +22,7 @@ router.use(protect);
 
 router.get('/', validateQuery(listOffersQuerySchema), listOffers);
 router.post('/', validate(createOfferSchema), createOffer);
+router.patch('/read', validate(markOffersReadSchema), markOffersRead);
 router.patch('/:id/counter', validate(counterOfferSchema), counterOffer);
 router.patch('/:id/accept', acceptOffer);
 router.patch('/:id/reject', rejectOffer);
