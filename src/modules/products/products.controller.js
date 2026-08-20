@@ -52,11 +52,26 @@ function buildProductPayload(body, user, existingProduct) {
   if (body.condition !== undefined) payload.condition = body.condition;
   if (body.description !== undefined) payload.description = body.description;
   if (body.coverImage !== undefined) payload.coverImage = body.coverImage;
-  if (body.images !== undefined) payload.images = body.images;
+  if (body.retainedImageUrls !== undefined) {
+    const retainedUrls = new Set(body.retainedImageUrls);
+    payload.images = (existingProduct?.images || [])
+      .filter((item) => retainedUrls.has(item.url))
+      .map((item) => item.toObject?.() ?? item);
+  } else if (body.images !== undefined) {
+    payload.images = body.images;
+  }
   if (body.media !== undefined) {
-    payload.media = existingProduct?.media?.length
-      ? [...existingProduct.media.map((item) => item.toObject?.() ?? item), ...body.media]
-      : body.media;
+    const existingMedia = body.retainedMediaUrls !== undefined
+      ? existingProduct?.media
+        ?.filter((item) => new Set(body.retainedMediaUrls).has(item.url))
+        .map((item) => item.toObject?.() ?? item) || []
+      : existingProduct?.media?.map((item) => item.toObject?.() ?? item) || [];
+    payload.media = [...existingMedia, ...body.media];
+  } else if (body.retainedMediaUrls !== undefined) {
+    const retainedUrls = new Set(body.retainedMediaUrls);
+    payload.media = (existingProduct?.media || [])
+      .filter((item) => retainedUrls.has(item.url))
+      .map((item) => item.toObject?.() ?? item);
   }
   if (body.status !== undefined) payload.status = body.status;
   if (body.isFeatured !== undefined) payload.isFeatured = body.isFeatured;
@@ -207,9 +222,17 @@ export async function updateProduct(req, res, next) {
     const product = await Product.findOne({ _id: req.params.id, seller: req.user._id }).select('+minPrice');
     if (!product) return res.status(404).json({ message: 'Product not found' });
     const incomingMediaCount = req.body.media?.length || 0;
-    const existingMediaCount = product.media?.length || product.images?.length || 0;
-    if (incomingMediaCount > 0 && existingMediaCount + incomingMediaCount > 7) {
-      return res.status(422).json({ message: `A listing can contain at most 8 media files including its cover. You can add ${Math.max(0, 7 - existingMediaCount)} more.` });
+    const existingMediaUrls = new Set((product.media || []).map((item) => item.url));
+    const existingImageUrls = new Set((product.images || []).map((item) => item.url));
+    const retainedMediaCount = req.body.retainedMediaUrls === undefined
+      ? existingMediaUrls.size
+      : req.body.retainedMediaUrls.filter((url) => existingMediaUrls.has(url)).length;
+    const retainedImageCount = req.body.retainedImageUrls === undefined
+      ? existingImageUrls.size
+      : req.body.retainedImageUrls.filter((url) => existingImageUrls.has(url)).length;
+    const retainedGalleryCount = retainedMediaCount + retainedImageCount;
+    if (retainedGalleryCount + incomingMediaCount > 7) {
+      return res.status(422).json({ message: `A listing can contain at most 8 media files including its cover. You can add ${Math.max(0, 7 - retainedGalleryCount)} more.` });
     }
 
     const productHasVariants = Array.isArray(product.variants) && product.variants.length > 0;

@@ -35,6 +35,8 @@ const productFormFields = [
   'variants',
   'coverImage',
   'images',
+  'retainedMediaUrls',
+  'retainedImageUrls',
 ];
 
 const productImageStorage = multer.diskStorage({

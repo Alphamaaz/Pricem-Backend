@@ -64,6 +64,16 @@ const variantsSchema = z.preprocess((value) => {
   }
 }, z.array(variantSchema).max(5, 'A product can have at most 5 variant groups').optional());
 
+const retainedUrlsSchema = z.preprocess((value) => {
+  if (typeof value !== 'string') return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}, z.array(imageUrlSchema).max(7).optional());
+
 const productFieldsSchema = z.object({
   title: z.string().trim().min(1, 'Listing title is required'),
   category: z.string().trim().toLowerCase().min(1, 'Category is required'),
@@ -76,6 +86,8 @@ const productFieldsSchema = z.object({
   coverImage: imageSchema,
   images: z.array(imageSchema).optional(),
   media: z.array(mediaSchema).max(7, 'Add at most 7 gallery files; the cover makes 8 total').optional(),
+  retainedMediaUrls: retainedUrlsSchema,
+  retainedImageUrls: retainedUrlsSchema,
   deliveryMode: z.enum(['seller_included', 'buyer_pays_externally']),
   estimatedDeliveryDays: z.string().trim().max(100).optional(),
   deliveryDetails: z.string().trim().max(500).optional(),
