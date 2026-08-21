@@ -1,18 +1,20 @@
 import { z } from 'zod';
 
 const shippingAddressSchema = z.object({
-  fullName: z.string().trim().min(1, 'Full name is required').optional(),
-  phone: z.string().trim().min(1, 'Phone is required').optional(),
-  addressLine1: z.string().trim().min(1, 'Address line 1 is required').optional(),
+  fullName: z.string().trim().min(1, 'Full name is required'),
+  phone: z.string().trim().min(1, 'Phone is required'),
+  addressLine1: z.string().trim().min(1, 'Address line 1 is required'),
   addressLine2: z.string().trim().optional(),
-  city: z.string().trim().min(1, 'City is required').optional(),
+  city: z.string().trim().min(1, 'City is required'),
   state: z.string().trim().optional(),
-  country: z.string().trim().min(1, 'Country is required').optional(),
+  country: z.string().trim().min(1, 'Country is required'),
 });
 
 export const checkoutCartSchema = z.object({
-  shippingAddress: shippingAddressSchema.optional(),
+  shippingAddress: shippingAddressSchema,
 });
+
+export const checkoutOfferSchema = z.object({ shippingAddress: shippingAddressSchema });
 
 const optionalUrl = z.string().trim().max(1000).refine((value) => {
   if (!value) return true;

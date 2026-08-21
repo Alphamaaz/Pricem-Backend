@@ -55,7 +55,7 @@ const orderSchema = new mongoose.Schema({
   buyer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   seller: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   source: { type: String, enum: ['cart', 'offer'], required: true, index: true },
-  offer: { type: mongoose.Schema.Types.ObjectId, ref: 'Offer', index: true },
+  offer: { type: mongoose.Schema.Types.ObjectId, ref: 'Offer', index: true, unique: true, sparse: true },
   items: { type: [orderItemSchema], required: true },
   subtotal: { type: Number, required: true, min: 0 },
   deliveryTotal: { type: Number, required: true, min: 0, default: 0 },
@@ -114,6 +114,12 @@ const orderSchema = new mongoose.Schema({
     enum: ['pending_payment', 'paid', 'processing', 'shipped', 'delivered', 'completed', 'cancelled'],
     default: 'pending_payment',
     index: true,
+  },
+  inventoryReservation: {
+    status: { type: String, enum: ['none', 'reserved', 'committed', 'released'], default: 'none', index: true },
+    expiresAt: { type: Date, index: true },
+    committedAt: Date,
+    releasedAt: Date,
   },
   completedAt: Date,
   disputeStatus: {

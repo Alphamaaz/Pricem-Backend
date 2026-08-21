@@ -55,6 +55,35 @@ export async function checkoutCart(req, res, next) {
   }
 }
 
+// PATCH /api/v1/orders/:id/checkout-offer
+export async function checkoutOffer(req, res, next) {
+  try {
+    const order = await loadOrder(req.params.id);
+    if (!isBuyer(order, req.user)) return res.status(403).json({ message: 'Only the buyer can check out this negotiated order' });
+    if (order.source !== 'offer') return res.status(409).json({ message: 'This is not a negotiated order' });
+    if (order.orderStatus !== 'pending_payment' || order.paymentStatus !== 'pending') {
+      return res.status(409).json({ message: 'This order is no longer awaiting checkout' });
+    }
+    // Backward compatibility for accepted-offer orders created before timed
+    // reservations were introduced. Their stock was already deducted.
+    if (!order.inventoryReservation || order.inventoryReservation.status === 'none') {
+      const reservationHours = Math.max(1, Number(process.env.OFFER_PAYMENT_WINDOW_HOURS) || 24);
+      order.inventoryReservation = {
+        status: 'reserved',
+        expiresAt: new Date(Date.now() + reservationHours * 60 * 60 * 1000),
+      };
+    }
+    if (order.inventoryReservation?.status !== 'reserved' || !order.inventoryReservation.expiresAt || order.inventoryReservation.expiresAt <= new Date()) {
+      return res.status(409).json({ message: 'This negotiated-price reservation has expired' });
+    }
+    order.shippingAddress = req.body.shippingAddress;
+    await order.save();
+    res.json({ message: 'Shipping address saved', order });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // GET /api/v1/orders
 export async function listOrders(req, res, next) {
   try {

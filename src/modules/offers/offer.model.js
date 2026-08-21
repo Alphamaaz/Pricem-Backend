@@ -6,6 +6,7 @@ const offerVariantSelectionSchema = new mongoose.Schema({
 }, { _id: false });
 
 const offerHistorySchema = new mongoose.Schema({
+  action: { type: String, enum: ['submitted', 'countered', 'accepted', 'rejected', 'expired'] },
   proposedBy: { type: String, enum: ['buyer', 'seller'], required: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   price: { type: Number, required: true, min: 0 },
@@ -39,6 +40,7 @@ const offerSchema = new mongoose.Schema({
   },
   lastProposedBy: { type: String, enum: ['buyer', 'seller'], required: true },
   history: { type: [offerHistorySchema], required: true },
+  order: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', index: true },
   buyerUnread: { type: Boolean, default: false, index: true },
   sellerUnread: { type: Boolean, default: false, index: true },
 

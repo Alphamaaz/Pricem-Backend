@@ -3,6 +3,9 @@ import Offer from './offer.model.js';
 import Product from '../products/product.model.js';
 import { createOrderFromOffer } from '../orders/orders.service.js';
 import { recordOfferEvent } from '../chat/chat.service.js';
+import { ensureOrderWorkspaceForOrder } from '../chat/chat.service.js';
+import Order from '../orders/order.model.js';
+import Cart from '../cart/cart.model.js';
 import { emitToUser } from '../../config/socket.js';
 
 const OPEN_OFFER_STATUSES = ['pending', 'countered'];
@@ -151,7 +154,7 @@ export async function createOffer(req, res, next) {
       status: 'pending',
       lastProposedBy: 'buyer',
       sellerUnread: true,
-      history: [{ proposedBy: 'buyer', user: req.user._id, price }],
+      history: [{ action: 'submitted', proposedBy: 'buyer', user: req.user._id, price }],
     });
 
     await recordOfferEvent({ offer, action: 'submitted' });
@@ -177,11 +180,20 @@ export async function listOffers(req, res, next) {
 
     const skip = (page - 1) * limit;
     const [offers, total] = await Promise.all([
-      Offer.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit),
+      Offer.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
       Offer.countDocuments(filter),
     ]);
-
-    res.json({ offers, total, page, pages: Math.ceil(total / limit) });
+    const missingOrderOfferIds = offers.filter((offer) => offer.status === 'accepted' && !offer.order).map((offer) => offer._id);
+    const legacyOrders = missingOrderOfferIds.length
+      ? await Order.find({ offer: { $in: missingOrderOfferIds } }).select('offer').lean()
+      : [];
+    const orderByOffer = new Map(legacyOrders.map((order) => [String(order.offer), order._id]));
+    res.json({
+      offers: offers.map((offer) => ({ ...offer, order: offer.order || orderByOffer.get(String(offer._id)) })),
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+    });
   } catch (err) {
     next(err);
   }
@@ -238,7 +250,7 @@ export async function counterOffer(req, res, next) {
     offer.lastProposedBy = actorRole;
     offer.buyerUnread = actorRole === 'seller';
     offer.sellerUnread = actorRole === 'buyer';
-    offer.history.push({ proposedBy: actorRole, user: req.user._id, price: req.body.price });
+    offer.history.push({ action: 'countered', proposedBy: actorRole, user: req.user._id, price: req.body.price });
 
     await offer.save();
     await recordOfferEvent({ offer, action: 'countered' });
@@ -251,52 +263,53 @@ export async function counterOffer(req, res, next) {
 
 // PATCH /api/v1/offers/:id/accept
 export async function acceptOffer(req, res, next) {
+  const session = await mongoose.startSession();
   try {
     if (!validObjectId(req.params.id)) {
       return res.status(400).json({ message: 'Invalid offer id' });
     }
 
-    const offer = await Offer.findById(req.params.id);
-    if (!offer) return res.status(404).json({ message: 'Offer not found' });
-    if (!assertOpenOffer(offer, res)) return;
+    let offer;
+    let order;
+    let actorRole;
+    await session.withTransaction(async () => {
+      offer = await Offer.findById(req.params.id).session(session);
+      if (!offer) { const err = new Error('Offer not found'); err.status = 404; throw err; }
+      if (!OPEN_OFFER_STATUSES.includes(offer.status)) { const err = new Error(`This offer is already ${offer.status}`); err.status = 409; throw err; }
+      actorRole = getActorRole(offer, req.user);
+      if (!actorRole) { const err = new Error('You are not part of this offer'); err.status = 403; throw err; }
+      if (offer.lastProposedBy === actorRole) { const err = new Error('You cannot accept your own latest proposal'); err.status = 400; throw err; }
 
-    const actorRole = getActorRole(offer, req.user);
-    if (!actorRole) return res.status(403).json({ message: 'You are not part of this offer' });
+      const product = await Product.findOne({ _id: offer.product, status: 'active' }).session(session);
+      if (!product) { const err = new Error('Product not found or inactive'); err.status = 404; throw err; }
+      const offerDetails = getProductOfferDetails(product, offer.variantSelections);
+      if (offerDetails.error) { const err = new Error(offerDetails.error); err.status = 422; throw err; }
+      if (offerDetails.availableStock < 1) { const err = new Error('This product selection is out of stock'); err.status = 422; throw err; }
 
-    if (offer.lastProposedBy === actorRole) {
-      return res.status(400).json({ message: 'You cannot accept your own latest proposal' });
-    }
+      order = await createOrderFromOffer(offer, undefined, { session });
+      offer.status = 'accepted';
+      offer.acceptedAt = new Date();
+      offer.order = order._id;
+      offer.buyerUnread = actorRole === 'seller';
+      offer.sellerUnread = actorRole === 'buyer';
+      offer.history.push({ action: 'accepted', proposedBy: actorRole, user: req.user._id, price: offer.currentPrice });
+      await offer.save({ session });
 
-    const product = await Product.findOne({ _id: offer.product, status: 'active' });
-    if (!product) return res.status(404).json({ message: 'Product not found or inactive' });
+      await Offer.updateMany(
+        { _id: { $ne: offer._id }, product: offer.product, variantKey: offer.variantKey, status: { $in: OPEN_OFFER_STATUSES } },
+        { $set: { status: 'rejected', rejectedAt: new Date() } },
+        { session },
+      );
+      await Cart.updateOne(
+        { user: offer.buyer },
+        { $pull: { items: { product: offer.product, variantKey: offer.variantKey } } },
+        { session },
+      );
+    });
 
-    const offerDetails = getProductOfferDetails(product, offer.variantSelections);
-    if (offerDetails.error) return res.status(422).json({ message: offerDetails.error });
-    if (offerDetails.availableStock < 1) {
-      return res.status(422).json({ message: 'This product selection is out of stock' });
-    }
-
-    const order = await createOrderFromOffer(offer);
-
-    offer.status = 'accepted';
-    offer.acceptedAt = new Date();
-    offer.buyerUnread = actorRole === 'seller';
-    offer.sellerUnread = actorRole === 'buyer';
-    await offer.save();
+    await ensureOrderWorkspaceForOrder(order);
     await recordOfferEvent({ offer, action: 'accepted' });
     notifyOfferRecipient(actorRole === 'buyer' ? offer.seller : offer.buyer, offer, 'accepted');
-
-    await Offer.updateMany(
-      {
-        _id: { $ne: offer._id },
-        product: offer.product,
-        buyer: offer.buyer,
-        seller: offer.seller,
-        variantKey: offer.variantKey,
-        status: { $in: OPEN_OFFER_STATUSES },
-      },
-      { $set: { status: 'rejected', rejectedAt: new Date() } },
-    );
 
     res.json({
       message: 'Offer accepted and order created',
@@ -305,6 +318,8 @@ export async function acceptOffer(req, res, next) {
     });
   } catch (err) {
     next(err);
+  } finally {
+    await session.endSession();
   }
 }
 
@@ -326,6 +341,7 @@ export async function rejectOffer(req, res, next) {
     offer.rejectedAt = new Date();
     offer.buyerUnread = actorRole === 'seller';
     offer.sellerUnread = actorRole === 'buyer';
+    offer.history.push({ action: 'rejected', proposedBy: actorRole, user: req.user._id, price: offer.currentPrice });
     await offer.save();
     await recordOfferEvent({ offer, action: 'rejected' });
     notifyOfferRecipient(actorRole === 'buyer' ? offer.seller : offer.buyer, offer, 'rejected');

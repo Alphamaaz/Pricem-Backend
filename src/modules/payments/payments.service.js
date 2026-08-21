@@ -7,6 +7,8 @@ import RefundRequest from './refund-request.model.js';
 import { recordOrderSystemEvent } from '../chat/chat.service.js';
 import { initializePaystackTransaction } from './paystack.service.js';
 import SellerPayout from '../payouts/seller-payout.model.js';
+import Product from '../products/product.model.js';
+import { releaseExpiredOfferReservations } from '../orders/orders.service.js';
 
 function nairaToKobo(amount) {
   return Math.round(Number(amount) * 100);
@@ -61,6 +63,27 @@ export async function initializeOrderPayment({ orderIds, buyer }) {
     const err = new Error('Only unpaid pending orders can be initialized for payment');
     err.status = 409;
     throw err;
+  }
+  for (const order of orders.filter((item) => item.source === 'offer')) {
+    const address = order.shippingAddress;
+    if (!address?.fullName || !address?.phone || !address?.addressLine1 || !address?.city || !address?.country) {
+      const err = new Error('Add the shipping address before paying for this negotiated order');
+      err.status = 422;
+      throw err;
+    }
+    if (order.inventoryReservation?.status !== 'reserved' || !order.inventoryReservation.expiresAt || order.inventoryReservation.expiresAt <= new Date()) {
+      await releaseExpiredOfferReservations();
+      const err = new Error('This negotiated-price reservation has expired');
+      err.status = 409;
+      throw err;
+    }
+    const productIds = order.items.map((item) => item.product);
+    const existingProducts = await Product.countDocuments({ _id: { $in: productIds } });
+    if (existingProducts !== new Set(productIds.map(String)).size) {
+      const err = new Error('An item in this negotiated order is no longer available');
+      err.status = 409;
+      throw err;
+    }
   }
 
   const allocations = orders.map((order) => {
@@ -157,6 +180,10 @@ export async function applySuccessfulPayment(reference, providerData) {
     order.paymentReference = reference;
     order.paymentStatus = 'paid';
     if (order.orderStatus === 'pending_payment') order.orderStatus = 'paid';
+    if (order.source === 'offer' && order.inventoryReservation?.status === 'reserved') {
+      order.inventoryReservation.status = 'committed';
+      order.inventoryReservation.committedAt = paidAt;
+    }
     order.paidAt = paidAt;
     order.financials = {
       grossAmountKobo: allocation.grossAmountKobo,
