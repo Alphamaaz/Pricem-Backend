@@ -24,6 +24,17 @@ export async function protect(req, res, next) {
   }
 }
 
+export async function optionalAuth(req, _res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) return next();
+    const payload = verifyAccessToken(authHeader.split(' ')[1]);
+    const user = await User.findById(payload.id);
+    if (user?.isActive) req.user = user;
+  } catch { /* Anonymous referral capture remains allowed. */ }
+  next();
+}
+
 // Guard: user must hold ALL of the specified roles in roles[]
 // NEVER checks activeRole — activeRole is UI only
 export function requireRole(...roles) {

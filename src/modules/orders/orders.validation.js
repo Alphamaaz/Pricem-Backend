@@ -40,6 +40,15 @@ export const shipmentSchema = z.object({
   proofUrl: optionalUrl.optional(),
 });
 
+export const completionRequestSchema = z.object({
+  note: z.string().trim().min(20, 'Explain the delivery proof in at least 20 characters').max(2000),
+});
+
+export const completionDecisionSchema = z.object({
+  decision: z.enum(['approve', 'reject']),
+  note: z.string().trim().min(5).max(2000),
+});
+
 export const listOrdersQuerySchema = z.object({
   role: z.enum(['buyer', 'seller']).optional(),
   status: z.enum(['pending_payment', 'paid', 'processing', 'shipped', 'delivered', 'completed', 'cancelled']).optional(),

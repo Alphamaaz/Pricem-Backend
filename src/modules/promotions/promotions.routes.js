@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import { optionalAuth, protect } from '../../middlewares/auth.middleware.js';
+import { validate } from '../../middlewares/validate.middleware.js';
+import { captureReferral, generateReferralLink, myReferralLinks, updatePromotion } from './promotions.controller.js';
+import { captureReferralSchema, promotionSettingsSchema } from './promotions.validation.js';
+const router = Router();
+router.post('/capture', optionalAuth, validate(captureReferralSchema), captureReferral);
+router.get('/mine', protect, myReferralLinks);
+router.post('/products/:productId/links', protect, generateReferralLink);
+router.patch('/products/:productId', protect, validate(promotionSettingsSchema), updatePromotion);
+export default router;

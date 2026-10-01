@@ -2,12 +2,15 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const productUploadDir = path.join(__dirname, '../../public/uploads/products');
+const orderEvidenceUploadDir = path.join(__dirname, '../../public/uploads/order-evidence');
 
 fs.mkdirSync(productUploadDir, { recursive: true });
+fs.mkdirSync(orderEvidenceUploadDir, { recursive: true });
 
 const imageMimeTypes = new Set([
   'image/jpeg',
@@ -20,6 +23,7 @@ const MAX_FILE_SIZE = 15 * 1024 * 1024;
 // The cover counts toward the product's combined maximum of eight media files.
 const MAX_PRODUCT_MEDIA = 8;
 const MAX_GALLERY_MEDIA = MAX_PRODUCT_MEDIA - 1;
+const MAX_EVIDENCE_FILES = 10;
 
 const productFormFields = [
   'title',
@@ -188,4 +192,33 @@ export function attachUploadedProductImages(req, _res, next) {
   }
 
   next();
+}
+
+const evidenceUploader = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, orderEvidenceUploadDir),
+    filename: (_req, file, cb) => {
+      const ext = file.mimetype === 'image/png' ? '.png' : file.mimetype === 'image/webp' ? '.webp' : '.jpg';
+      cb(null, `${Date.now()}-${crypto.randomUUID()}${ext}`);
+    },
+  }),
+  limits: { fileSize: MAX_FILE_SIZE, files: MAX_EVIDENCE_FILES },
+  fileFilter: (_req, file, cb) => {
+    if (!imageMimeTypes.has(file.mimetype)) return cb(new Error('Evidence must be a JPEG, PNG, WebP, or GIF image'));
+    cb(null, true);
+  },
+});
+
+export function uploadOrderEvidence(req, res, next) {
+  evidenceUploader.array('evidence', MAX_EVIDENCE_FILES)(req, res, (err) => {
+    if (err) return res.status(422).json({ message: getUploadErrorMessage(err) });
+    try {
+      for (const file of req.files || []) validateUploadedFile(file);
+      req.body.evidenceUrls = (req.files || []).map((file) => `/uploads/order-evidence/${file.filename}`);
+      next();
+    } catch (validationError) {
+      for (const file of req.files || []) fs.rmSync(file.path, { force: true });
+      res.status(422).json({ message: validationError.message });
+    }
+  });
 }

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-const evidenceUrls = z.array(z.string().trim().url()).max(10).default([]);
+const evidenceUrl = z.string().trim().refine((value) => value.startsWith('/uploads/order-evidence/') || URL.canParse(value), 'Invalid evidence URL');
+const evidenceUrls = z.array(evidenceUrl).max(10).default([]);
 
 export const openDisputeSchema = z.object({
   reason: z.string().trim().min(3).max(200),
@@ -14,7 +15,16 @@ export const disputeMessageSchema = z.object({
 });
 
 export const resolveDisputeSchema = z.object({
-  outcome: z.enum(['full_refund', 'partial_refund', 'release_seller_payment', 'cancel_order']),
+  outcome: z.enum([
+    'amicable_agreement',
+    'seller_penalized_strike',
+    'seller_banned_blacklisted',
+    'claim_dismissed',
+    'full_refund',
+    'partial_refund',
+    'release_seller_payment',
+    'cancel_order',
+  ]),
   amount: z.coerce.number().positive().optional(),
   decision: z.string().trim().min(5).max(3000),
 }).superRefine((value, ctx) => {

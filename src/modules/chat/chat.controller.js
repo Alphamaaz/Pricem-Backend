@@ -189,7 +189,8 @@ export async function sendMessage(req, res, next) {
       return res.status(409).json({ message: 'This conversation is read-only or closed' });
     }
 
-    const blockedReason = findBlockedContent(req.body.text);
+    const isOrderWorkspace = result.conversation.scope === 'order';
+    const blockedReason = findBlockedContent(req.body.text, { isOrderWorkspace });
     if (blockedReason) {
       return res.status(422).json({
         message: `Message not sent. Pricem does not allow ${blockedReason} in chat.`,

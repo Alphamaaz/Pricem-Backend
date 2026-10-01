@@ -52,35 +52,47 @@ export async function applyToSell(req, res, next) {
   try {
     const user = req.user;
 
-    if (user.roles.includes('seller')) {
-      return res.status(400).json({ message: 'You are already a seller' });
-    }
-    if (user.sellerProfile?.approvalStatus === 'pending') {
-      return res.status(400).json({ message: 'Your seller application is already under review' });
+    if (user.roles.includes('seller') && user.sellerProfile?.approvalStatus === 'approved') {
+      return res.status(400).json({ message: 'You are already an active seller' });
     }
 
-    const { storeName, description, bankName, accountNumber, accountName } = req.body;
-    const storeSlug = await generateUniqueStoreSlug(storeName);
+    const { storeName, storeSlug: customSlug, description, bankName, accountNumber, accountName } = req.body;
+    const baseToSlugify = customSlug && customSlug.trim() ? customSlug : storeName;
+    const storeSlug = await generateUniqueStoreSlug(baseToSlugify);
+
+    if (!user.roles.includes('seller')) {
+      user.roles.push('seller');
+    }
+    user.activeRole = 'seller';
 
     user.sellerProfile = {
-      storeName,
+      storeName: storeName.trim(),
       storeSlug,
-      description,
-      payoutDetails: { bankName, accountNumber, accountName },
-      kycStatus: 'pending',
-      approvalStatus: 'pending',
+      description: (description || '').trim(),
+      payoutDetails: {
+        bankName: (bankName || '').trim(),
+        accountNumber: (accountNumber || '').trim(),
+        accountName: (accountName || '').trim(),
+      },
+      kycStatus: (bankName && accountNumber) ? 'approved' : 'not_submitted',
+      approvalStatus: 'approved',
+      approvedAt: new Date(),
     };
 
     try {
       await user.save();
     } catch (err) {
       if (err.code === 11000 && err.keyPattern?.['sellerProfile.storeSlug']) {
-        return res.status(409).json({ message: 'Store slug is already taken. Please try again.' });
+        return res.status(409).json({ message: 'Store slug is already taken. Please choose another.' });
       }
       throw err;
     }
 
-    res.status(201).json({ message: 'Seller application submitted. Awaiting admin approval.', sellerProfile: user.sellerProfile });
+    res.status(201).json({
+      message: 'Your store is active! You can now start listing products immediately.',
+      sellerProfile: user.sellerProfile,
+      user,
+    });
   } catch (err) {
     next(err);
   }
@@ -94,11 +106,24 @@ export async function getProfile(req, res) {
 // PATCH /api/v1/users/me
 export async function updateProfile(req, res, next) {
   try {
-    const { fullName } = req.body;
+    const { fullName, contactNumber, description, bankName, accountNumber, accountName } = req.body;
     const user = req.user;
     if (fullName) user.fullName = fullName;
+    if (contactNumber) user.contactNumber = contactNumber;
+
+    if (user.sellerProfile) {
+      if (description !== undefined) user.sellerProfile.description = description;
+      if (bankName || accountNumber || accountName) {
+        user.sellerProfile.payoutDetails = {
+          bankName:      bankName      !== undefined ? bankName      : user.sellerProfile.payoutDetails?.bankName,
+          accountNumber: accountNumber !== undefined ? accountNumber : user.sellerProfile.payoutDetails?.accountNumber,
+          accountName:   accountName   !== undefined ? accountName   : user.sellerProfile.payoutDetails?.accountName,
+        };
+      }
+    }
+
     await user.save();
-    res.json({ user });
+    res.json({ message: 'Profile updated successfully', user });
   } catch (err) {
     next(err);
   }

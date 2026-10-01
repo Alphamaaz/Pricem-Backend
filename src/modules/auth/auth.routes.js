@@ -8,6 +8,7 @@ import {
   resendVerificationSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  changePasswordSchema,
 } from './auth.validation.js';
 import {
   register,
@@ -18,6 +19,7 @@ import {
   refreshToken,
   forgotPassword,
   resetPassword,
+  changePassword,
   getMe,
 } from './auth.controller.js';
 
@@ -31,6 +33,7 @@ router.post('/logout',        protect,                        logout);
 router.post('/refresh-token',                                 refreshToken);
 router.post('/forgot-password', validate(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password',  validate(resetPasswordSchema),  resetPassword);
+router.post('/change-password', protect, validate(changePasswordSchema), changePassword);
 router.get('/me',             protect,                        getMe);
 
 export default router;

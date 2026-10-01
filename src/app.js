@@ -86,6 +86,9 @@ import paymentsRoutes from './modules/payments/payments.routes.js';
 import disputesRoutes from './modules/disputes/disputes.routes.js';
 import payoutsRoutes from './modules/payouts/payouts.routes.js';
 import notificationsRoutes from './modules/notifications/notifications.routes.js';
+import reviewsRoutes from './modules/reviews/reviews.routes.js';
+import promotionsRoutes from './modules/promotions/promotions.routes.js';
+import questionsRoutes from './modules/questions/questions.routes.js';
 
 app.use('/api/v1/auth',  authRoutes);
 app.use('/api/v1/users', usersRoutes);
@@ -100,6 +103,9 @@ app.use('/api/v1/payments', paymentsRoutes);
 app.use('/api/v1/disputes', disputesRoutes);
 app.use('/api/v1/payouts', payoutsRoutes);
 app.use('/api/v1/notifications', notificationsRoutes);
+app.use('/api/v1/reviews', reviewsRoutes);
+app.use('/api/v1/promotions', promotionsRoutes);
+app.use('/api/v1/questions', questionsRoutes);
 
 // 404
 app.use((_req, res) => res.status(404).json({ message: 'Route not found' }));

@@ -15,6 +15,9 @@ const sellerProfileSchema = new mongoose.Schema({
   approvedAt:     Date,
   rejectedAt:     Date,
   rejectionReason: String,
+  ratingAverage: { type: Number, default: 0, min: 0, max: 5 },
+  ratingCount: { type: Number, default: 0, min: 0 },
+  ratingTotal: { type: Number, default: 0, min: 0, select: false },
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({

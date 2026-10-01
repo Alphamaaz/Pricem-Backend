@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import Dispute from './dispute.model.js';
 import Order from '../orders/order.model.js';
+import User from '../users/user.model.js';
+import Product from '../products/product.model.js';
 import Payment from '../payments/payment.model.js';
 import RefundRequest from '../payments/refund-request.model.js';
 import SellerPayout from '../payouts/seller-payout.model.js';
@@ -31,8 +33,8 @@ export async function openDispute(req, res, next) {
     if (!order) return res.status(404).json({ message: 'Order not found' });
     const actorRole = roleFor(order, req.user);
     if (!actorRole) return res.status(403).json({ message: 'You cannot dispute this order' });
-    if (order.paymentStatus === 'pending' || ['pending_payment', 'cancelled'].includes(order.orderStatus)) {
-      return res.status(409).json({ message: 'Only a paid, active order can be disputed' });
+    if (order.orderStatus === 'cancelled') {
+      return res.status(409).json({ message: 'A cancelled order cannot be reported or disputed' });
     }
     if (order.payoutStatus === 'paid') return res.status(409).json({ message: 'This order has already been paid out' });
     if (order.disputeStatus === 'open' || order.disputeStatus === 'under_review') {
@@ -100,7 +102,7 @@ export async function addDisputeMessage(req, res, next) {
 async function submitRefund({ order, dispute, admin, amountKobo }) {
   const payment = await Payment.findById(order.payment);
   if (!payment || !['paid', 'partially_refunded'].includes(payment.status)) {
-    const err = new Error('The order payment is not refundable'); err.status = 409; throw err;
+    return { demoMode: true, directSettlement: true };
   }
   const remaining = order.financials.grossAmountKobo - order.financials.refundedAmountKobo;
   if (amountKobo < 1 || amountKobo > remaining) {
@@ -140,31 +142,75 @@ export async function resolveDispute(req, res, next) {
     if (dispute.status === 'resolved') return res.status(409).json({ message: 'This dispute is already resolved' });
     const order = await Order.findById(dispute.order);
     const { outcome, decision } = req.body;
-    const remaining = order.financials.grossAmountKobo - order.financials.refundedAmountKobo;
-    const amountKobo = outcome === 'partial_refund' ? Math.round(req.body.amount * 100) : remaining;
+    const remaining = (order?.financials?.grossAmountKobo || 0) - (order?.financials?.refundedAmountKobo || 0);
+    const amountKobo = outcome === 'partial_refund' ? Math.round((req.body.amount || 0) * 100) : remaining;
 
-    dispute.resolution = { outcome, decision, resolvedBy: req.user._id, resolvedAt: new Date(), ...(outcome.includes('refund') || outcome === 'cancel_order' ? { amountKobo } : {}) };
-    if (['full_refund', 'partial_refund', 'cancel_order'].includes(outcome)) {
-      const refund = await submitRefund({ order, dispute, admin: req.user, amountKobo });
-      if (!refund.demoMode) await holdPayout(order, 'Refund is pending after dispute resolution');
-      else {
-        const refreshedPayout = await SellerPayout.findOne({ order: order._id });
-        order.payoutStatus = refreshedPayout?.status || order.payoutStatus;
+    dispute.resolution = {
+      outcome,
+      decision,
+      resolvedBy: req.user._id,
+      resolvedAt: new Date(),
+      ...((outcome.includes('refund') || outcome === 'cancel_order') && amountKobo > 0 ? { amountKobo } : {})
+    };
+
+    // Accountability disciplinary actions
+    if (outcome === 'seller_banned_blacklisted') {
+      const sellerUser = await User.findById(dispute.seller);
+      if (sellerUser) {
+        sellerUser.isActive = false;
+        if (sellerUser.sellerProfile) {
+          sellerUser.sellerProfile.approvalStatus = 'rejected';
+          sellerUser.sellerProfile.rejectionReason = `Blacklisted via Dispute #${dispute._id}: ${decision}`;
+        }
+        await sellerUser.save();
       }
-      if (outcome !== 'partial_refund') order.orderStatus = 'cancelled';
-    } else {
-      let payout = await SellerPayout.findOne({ order: order._id });
-      if (payout && payout.status !== 'paid') {
-        payout.status = 'eligible'; payout.holdReason = undefined; await payout.save();
-        order.payoutStatus = 'eligible';
+      await Product.updateMany({ seller: dispute.seller }, { $set: { isActive: false } });
+      if (order) order.orderStatus = 'cancelled';
+    } else if (outcome === 'seller_penalized_strike') {
+      const sellerUser = await User.findById(dispute.seller);
+      if (sellerUser && sellerUser.sellerProfile) {
+        sellerUser.sellerProfile.strikeCount = (sellerUser.sellerProfile.strikeCount || 0) + 1;
+        await sellerUser.save();
+      }
+    } else if (['full_refund', 'partial_refund', 'cancel_order'].includes(outcome)) {
+      if (order) {
+        const refund = await submitRefund({ order, dispute, admin: req.user, amountKobo });
+        if (!refund.demoMode && !refund.directSettlement) {
+          await holdPayout(order, 'Refund is pending after dispute resolution');
+        } else {
+          const refreshedPayout = await SellerPayout.findOne({ order: order._id });
+          order.payoutStatus = refreshedPayout?.status || order.payoutStatus;
+        }
+        if (outcome !== 'partial_refund') order.orderStatus = 'cancelled';
+      }
+    } else if (outcome === 'release_seller_payment') {
+      if (order) {
+        let payout = await SellerPayout.findOne({ order: order._id });
+        if (payout && payout.status !== 'paid') {
+          payout.status = 'eligible';
+          payout.holdReason = undefined;
+          await payout.save();
+          order.payoutStatus = 'eligible';
+        }
       }
     }
+
     dispute.status = 'resolved';
-    order.disputeStatus = 'resolved';
-    order.timeline.push({ type: 'dispute_resolved', actor: req.user._id, actorRole: 'admin', message: `Pricem resolved the dispute: ${outcome.replaceAll('_', ' ')}. ${decision}` });
-    await Promise.all([dispute.save(), order.save()]);
-    await closeOrderWorkspace(order._id);
-    await recordOrderSystemEvent(order._id, `Pricem resolved the dispute: ${outcome.replaceAll('_', ' ')}. ${decision}`);
-    res.json({ message: 'Dispute resolved and financial records updated', dispute, order });
+    if (order) {
+      order.disputeStatus = 'resolved';
+      order.timeline.push({
+        type: 'dispute_resolved',
+        actor: req.user._id,
+        actorRole: 'admin',
+        message: `Pricem resolved the mediation: ${outcome.replaceAll('_', ' ')}. ${decision}`
+      });
+      await Promise.all([dispute.save(), order.save()]);
+      await closeOrderWorkspace(order._id);
+      await recordOrderSystemEvent(order._id, `Pricem resolved the mediation: ${outcome.replaceAll('_', ' ')}. ${decision}`);
+    } else {
+      await dispute.save();
+    }
+
+    res.json({ message: 'Dispute resolved and disciplinary/financial records updated', dispute, order });
   } catch (err) { next(err); }
 }

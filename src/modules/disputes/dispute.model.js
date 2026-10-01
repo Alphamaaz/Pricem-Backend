@@ -20,7 +20,19 @@ const disputeSchema = new mongoose.Schema({
   status: { type: String, enum: ['open', 'under_review', 'resolved'], default: 'open', index: true },
   messages: { type: [disputeMessageSchema], default: [] },
   resolution: {
-    outcome: { type: String, enum: ['full_refund', 'partial_refund', 'release_seller_payment', 'cancel_order'] },
+    outcome: {
+      type: String,
+      enum: [
+        'amicable_agreement',
+        'seller_penalized_strike',
+        'seller_banned_blacklisted',
+        'claim_dismissed',
+        'full_refund',
+        'partial_refund',
+        'release_seller_payment',
+        'cancel_order',
+      ],
+    },
     amountKobo: { type: Number, min: 0 },
     decision: { type: String, trim: true, maxlength: 3000 },
     resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

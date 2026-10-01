@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import Product from './product.model.js';
 import Conversation from '../chat/conversation.model.js';
+import User from '../users/user.model.js';
 
 function isApprovedSeller(user) {
   return (
@@ -51,6 +52,17 @@ function buildProductPayload(body, user, existingProduct) {
   }
   if (body.condition !== undefined) payload.condition = body.condition;
   if (body.description !== undefined) payload.description = body.description;
+  if (body.brand !== undefined) payload.brand = body.brand;
+  if (body.warranty !== undefined) payload.warranty = body.warranty;
+  if (body.negotiable !== undefined) payload.negotiable = body.negotiable;
+  if (body.contactPhone !== undefined) payload.contactPhone = body.contactPhone;
+  if (body.state !== undefined || body.city !== undefined || body.addressNote !== undefined) {
+    payload.location = {
+      state: body.state || existingProduct?.location?.state,
+      city: body.city || existingProduct?.location?.city,
+      addressNote: body.addressNote || existingProduct?.location?.addressNote,
+    };
+  }
   if (body.coverImage !== undefined) payload.coverImage = body.coverImage;
   if (body.retainedImageUrls !== undefined) {
     const retainedUrls = new Set(body.retainedImageUrls);
@@ -141,6 +153,8 @@ export async function listProducts(req, res, next) {
       search,
       storeSlug,
       inStock,
+      state,
+      negotiable,
       sort,
     } = req.validatedQuery;
 
@@ -149,6 +163,8 @@ export async function listProducts(req, res, next) {
     if (condition) filter.condition = condition;
     if (storeSlug) filter.storeSlug = storeSlug;
     if (inStock) filter.stock = { $gt: 0 };
+    if (state) filter["location.state"] = { $regex: new RegExp("^" + state + "$", "i") };
+    if (negotiable !== undefined) filter.negotiable = negotiable;
     if (minPrice !== undefined || maxPrice !== undefined) {
       filter.price = {};
       if (minPrice !== undefined) filter.price.$gte = minPrice;
@@ -205,7 +221,13 @@ export async function getProductById(req, res, next) {
     );
     if (!product) return res.status(404).json({ message: 'Product not found' });
 
-    res.json({ product });
+    const seller = await User.findById(product.seller).select('sellerProfile.ratingAverage sellerProfile.ratingCount contactNumber fullName createdAt').lean();
+    const productJson = product.toObject();
+    productJson.sellerRatingAverage = seller?.sellerProfile?.ratingAverage || 0;
+    productJson.sellerRatingCount = seller?.sellerProfile?.ratingCount || 0;
+    productJson.sellerPhone = seller?.contactNumber || null;
+    productJson.sellerJoinedAt = seller?.createdAt || null;
+    res.json({ product: productJson });
   } catch (err) {
     next(err);
   }

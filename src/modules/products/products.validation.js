@@ -81,6 +81,13 @@ const productFieldsSchema = z.object({
   minPrice: z.coerce.number().min(0, 'Minimum price cannot be negative').optional(),
   stock: z.coerce.number().int().min(0, 'Stock cannot be negative').optional(),
   condition: z.enum(['new', 'used'], { message: 'Condition must be new or used' }),
+  brand: z.string().trim().max(100).optional(),
+  warranty: z.string().trim().max(100).optional(),
+  negotiable: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
+  contactPhone: z.string().trim().max(30).optional(),
+  state: z.string().trim().max(100).optional(),
+  city: z.string().trim().max(100).optional(),
+  addressNote: z.string().trim().max(250).optional(),
   description: z.string().trim().min(1, 'Description is required'),
   variants: variantsSchema,
   coverImage: imageSchema,
@@ -142,6 +149,8 @@ export const listProductsQuerySchema = z.object({
   search: z.string().trim().optional(),
   storeSlug: z.string().trim().toLowerCase().optional(),
   inStock: booleanQuerySchema.optional(),
+  state: z.string().trim().optional(),
+  negotiable: booleanQuerySchema.optional(),
   sort: z.enum(['featured', 'newest', 'price_asc', 'price_desc', 'popular', 'rating']).default('featured'),
 }).refine((data) => (
   data.minPrice === undefined ||

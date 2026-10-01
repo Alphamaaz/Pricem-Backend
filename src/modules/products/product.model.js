@@ -63,6 +63,15 @@ const productSchema = new mongoose.Schema({
   minPrice: { type: Number, min: 0, select: false },
   stock: { type: Number, required: true, min: 0, default: 1, index: true },
   condition: { type: String, enum: ['new', 'used'], required: true },
+  brand: { type: String, trim: true },
+  warranty: { type: String, trim: true },
+  negotiable: { type: Boolean, default: true },
+  contactPhone: { type: String, trim: true },
+  location: {
+    state: { type: String, trim: true },
+    city: { type: String, trim: true },
+    addressNote: { type: String, trim: true },
+  },
   description: { type: String, required: true, trim: true },
   variants: {
     type: [variantSchema],
@@ -93,6 +102,13 @@ const productSchema = new mongoose.Schema({
   salesCount: { type: Number, default: 0, min: 0 },
   ratingAverage: { type: Number, default: 0, min: 0, max: 5 },
   ratingCount: { type: Number, default: 0, min: 0 },
+  ratingTotal: { type: Number, default: 0, min: 0, select: false },
+  promotion: {
+    enabled: { type: Boolean, default: false, index: true },
+    commissionPercent: { type: Number, min: 0, max: 100 },
+    startsAt: Date,
+    endsAt: Date,
+  },
 }, { timestamps: true });
 
 productSchema.index({ title: 'text', description: 'text', category: 'text' });
