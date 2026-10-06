@@ -26,7 +26,7 @@ const deliverySchema = new mongoose.Schema({
   estimatedDays: { type: String, trim: true },
   details: { type: String, trim: true, maxlength: 500 },
   // Compatibility only for listings created before the delivery-policy change.
-  // These values are never included in Pricem checkout totals.
+  // These values are never included in PriceAm checkout totals.
   cost: { type: Number, min: 0, select: false },
   option: { type: String, trim: true, select: false },
 }, { _id: false });

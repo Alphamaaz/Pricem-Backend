@@ -96,7 +96,7 @@ export async function initiateRefund(req, res, next) {
       ? { data: { id: `demo-refund-${Date.now()}`, refund_reference: `demo-refund-${Date.now()}` } }
       : await createPaystackRefund({
         transaction: payment.reference, amount: amountKobo, currency: payment.currency,
-        customer_note: req.body.reason, merchant_note: `Pricem admin ${req.user._id}: ${req.body.reason}`,
+        customer_note: req.body.reason, merchant_note: `PriceAm admin ${req.user._id}: ${req.body.reason}`,
       });
     payment.refundStatus = 'pending';
     payment.lastProviderResponse = providerResponse.data;

@@ -35,7 +35,7 @@ export async function register(req, res, next) {
       existing.emailVerificationExpires = Date.now() + OTP_EXPIRY_MS;
       await existing.save();
 
-      sendOTPEmail(existing.email, otp, 'Your Pricem verification code');
+      sendOTPEmail(existing.email, otp, 'Your PriceAm verification code');
 
       return res.status(200).json({
         message: 'A new OTP has been sent to your email. Please verify within 10 minutes.',
@@ -53,7 +53,7 @@ export async function register(req, res, next) {
       emailVerificationExpires: Date.now() + OTP_EXPIRY_MS,
     });
 
-    sendOTPEmail(user.email, otp, 'Your Pricem verification code');
+    sendOTPEmail(user.email, otp, 'Your PriceAm verification code');
 
     res.status(201).json({
       message: 'Registration successful. Enter the OTP sent to your email to verify your account.',
@@ -80,7 +80,7 @@ export async function resendVerification(req, res, next) {
     user.emailVerificationExpires = Date.now() + OTP_EXPIRY_MS;
     await user.save();
 
-    sendOTPEmail(user.email, otp, 'Your Pricem verification code');
+    sendOTPEmail(user.email, otp, 'Your PriceAm verification code');
 
     res.json({ message: 'If that email is registered and unverified, a new OTP has been sent.' });
   } catch (err) {
@@ -211,7 +211,7 @@ export async function forgotPassword(req, res, next) {
 
     sendEmail({
       to: user.email,
-      subject: 'Pricem password reset OTP',
+      subject: 'PriceAm password reset OTP',
       html: passwordResetEmailHtml(otp),
     }).catch(console.error);
 

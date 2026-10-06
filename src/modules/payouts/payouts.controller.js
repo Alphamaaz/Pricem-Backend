@@ -31,7 +31,7 @@ export async function approvePayout(req, res, next) {
     order.payoutStatus = 'approved';
     order.timeline.push({ type: 'payout_approved', actor: req.user._id, actorRole: 'admin', message: 'Admin approved the seller payout for manual transfer.' });
     await Promise.all([payout.save(), order.save()]);
-    await recordOrderSystemEvent(order._id, 'Pricem approved the seller payout. Manual transfer confirmation is pending.');
+    await recordOrderSystemEvent(order._id, 'PriceAm approved the seller payout. Manual transfer confirmation is pending.');
     res.json({ message: 'Seller payout approved for manual transfer', payout });
   } catch (err) { next(err); }
 }
@@ -52,7 +52,7 @@ export async function confirmPayout(req, res, next) {
       providerReference: req.body.transferReference, description: `Manual seller payout via ${req.body.transferMethod}`,
     });
     await Promise.all([payout.save(), order.save()]);
-    await recordOrderSystemEvent(order._id, 'Seller payout transfer was confirmed by Pricem admin.');
+    await recordOrderSystemEvent(order._id, 'Seller payout transfer was confirmed by PriceAm admin.');
     res.json({ message: 'Seller payout marked as paid', payout });
   } catch (err) { next(err); }
 }

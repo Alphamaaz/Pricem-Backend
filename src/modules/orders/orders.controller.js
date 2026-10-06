@@ -190,9 +190,9 @@ export async function requestOrderCompletion(req, res, next) {
       status: 'pending', note: req.body.note, evidenceUrls: req.body.evidenceUrls,
       requestedAt: new Date(), reviewedAt: undefined, reviewedBy: undefined, adminNote: undefined,
     };
-    addTimeline(order, 'completion_requested', req.user, 'seller', 'Seller requested Pricem confirmation and submitted delivery proof. Admin review is pending.');
+    addTimeline(order, 'completion_requested', req.user, 'seller', 'Seller requested PriceAm confirmation and submitted delivery proof. Admin review is pending.');
     await order.save();
-    await recordOrderSystemEvent(order._id, 'Seller requested order completion with delivery proof. Pricem admin review is pending.');
+    await recordOrderSystemEvent(order._id, 'Seller requested order completion with delivery proof. PriceAm admin review is pending.');
     res.status(201).json({ message: 'Completion request submitted for admin review', order });
   } catch (err) { next(err); }
 }
@@ -215,12 +215,12 @@ export async function reviewCompletionRequest(req, res, next) {
     order.completionRequest.reviewedBy = req.user._id;
     order.completionRequest.adminNote = req.body.note;
     if (req.body.decision === 'approve') {
-      await completeOrder(order, req.user, 'admin', `Pricem approved the seller's delivery proof. ${req.body.note}`);
+      await completeOrder(order, req.user, 'admin', `PriceAm approved the seller's delivery proof. ${req.body.note}`);
       return res.json({ message: 'Completion request approved and order completed', order });
     }
-    addTimeline(order, 'completion_request_rejected', req.user, 'admin', `Pricem rejected the completion request: ${req.body.note}`);
+    addTimeline(order, 'completion_request_rejected', req.user, 'admin', `PriceAm rejected the completion request: ${req.body.note}`);
     await order.save();
-    await recordOrderSystemEvent(order._id, `Pricem rejected the seller's completion request: ${req.body.note}`);
+    await recordOrderSystemEvent(order._id, `PriceAm rejected the seller's completion request: ${req.body.note}`);
     res.json({ message: 'Completion request rejected', order });
   } catch (err) { next(err); }
 }
@@ -280,7 +280,7 @@ export async function acknowledgeDeliveryArrangement(req, res, next) {
     order.deliveryArrangement.acknowledgedAt = new Date();
     addTimeline(order, 'delivery_acknowledged', req.user, 'buyer', 'Buyer acknowledged the external delivery cost and arrangement.');
     await order.save();
-    await recordOrderSystemEvent(order._id, 'Buyer acknowledged the external delivery arrangement. Pricem does not collect or protect this delivery payment.');
+    await recordOrderSystemEvent(order._id, 'Buyer acknowledged the external delivery arrangement. PriceAm does not collect or protect this delivery payment.');
     res.json({ message: 'Delivery arrangement acknowledged', order });
   } catch (err) {
     next(err);

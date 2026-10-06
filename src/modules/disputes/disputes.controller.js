@@ -53,7 +53,7 @@ export async function openDispute(req, res, next) {
     order.timeline.push({ type: 'dispute_opened', actor: req.user._id, actorRole, message: `Dispute opened: ${req.body.reason}. Financial release is on hold.` });
     await order.save();
     await reopenOrderWorkspace(order._id);
-    await recordOrderSystemEvent(order._id, 'A dispute was opened. Buyer and seller may communicate while Pricem admin reviews it. All financial release is on hold.');
+    await recordOrderSystemEvent(order._id, 'A dispute was opened. Buyer and seller may communicate while PriceAm admin reviews it. All financial release is on hold.');
     res.status(201).json({ message: 'Dispute opened and financial release placed on hold', dispute, order });
   } catch (err) { next(err); }
 }
@@ -114,7 +114,7 @@ async function submitRefund({ order, dispute, admin, amountKobo }) {
     : await createPaystackRefund({
       transaction: payment.reference, amount: amountKobo, currency: payment.currency,
       customer_note: dispute.resolution.decision,
-      merchant_note: `Pricem dispute ${dispute._id} resolved by ${admin._id}`,
+      merchant_note: `PriceAm dispute ${dispute._id} resolved by ${admin._id}`,
     });
   const refundRequest = await RefundRequest.create({
     payment: payment._id, order: order._id, amountKobo,
@@ -202,11 +202,11 @@ export async function resolveDispute(req, res, next) {
         type: 'dispute_resolved',
         actor: req.user._id,
         actorRole: 'admin',
-        message: `Pricem resolved the mediation: ${outcome.replaceAll('_', ' ')}. ${decision}`
+        message: `PriceAm resolved the mediation: ${outcome.replaceAll('_', ' ')}. ${decision}`
       });
       await Promise.all([dispute.save(), order.save()]);
       await closeOrderWorkspace(order._id);
-      await recordOrderSystemEvent(order._id, `Pricem resolved the mediation: ${outcome.replaceAll('_', ' ')}. ${decision}`);
+      await recordOrderSystemEvent(order._id, `PriceAm resolved the mediation: ${outcome.replaceAll('_', ' ')}. ${decision}`);
     } else {
       await dispute.save();
     }

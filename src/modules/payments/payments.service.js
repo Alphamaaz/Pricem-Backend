@@ -200,7 +200,7 @@ export async function applySuccessfulPayment(reference, providerData) {
     const base = { order: order._id, payment: payment._id, seller: order.seller, currency: payment.currency, providerReference: reference };
     await createLedgerEntry({ ...base, idempotencyKey: `${reference}:${order._id}:payment`, entryType: 'payment_received', direction: 'credit', amountKobo: allocation.grossAmountKobo, description: 'Buyer item payment received into platform hold' });
     await createLedgerEntry({ ...base, idempotencyKey: `${reference}:${order._id}:seller`, entryType: 'seller_payable', direction: 'credit', amountKobo: allocation.sellerPayableKobo, description: 'Seller payable balance held until eligible for manual release' });
-    if (allocation.platformFeeKobo > 0) await createLedgerEntry({ ...base, idempotencyKey: `${reference}:${order._id}:platform-fee`, entryType: 'platform_fee', direction: 'credit', amountKobo: allocation.platformFeeKobo, description: 'Pricem platform fee' });
+    if (allocation.platformFeeKobo > 0) await createLedgerEntry({ ...base, idempotencyKey: `${reference}:${order._id}:platform-fee`, entryType: 'platform_fee', direction: 'credit', amountKobo: allocation.platformFeeKobo, description: 'PriceAm platform fee' });
     if (allocation.processorFeeKobo > 0) await createLedgerEntry({ ...base, idempotencyKey: `${reference}:${order._id}:processor-fee`, entryType: 'processor_fee', direction: 'debit', amountKobo: allocation.processorFeeKobo, description: 'Paystack processing fee' });
     if (!wasPaid) await recordOrderSystemEvent(order._id, `${payment.provider === 'demo' ? 'Demo payment' : 'Paystack'} confirmed item payment. The seller can now begin fulfilment.`);
   }
