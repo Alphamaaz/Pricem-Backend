@@ -189,6 +189,14 @@ export function attachUploadedProductImages(req, _res, next) {
       sizeBytes: file.size,
       ...(file.durationSeconds !== undefined ? { durationSeconds: file.durationSeconds } : {}),
     }));
+
+    req.body.images = media
+      .filter((file) => file.mimetype !== 'video/mp4')
+      .map((file) => ({
+        url: `/uploads/products/${file.filename}`,
+        publicId: file.filename,
+        alt: req.body.title,
+      }));
   }
 
   next();

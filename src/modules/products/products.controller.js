@@ -64,13 +64,18 @@ function buildProductPayload(body, user, existingProduct) {
     };
   }
   if (body.coverImage !== undefined) payload.coverImage = body.coverImage;
-  if (body.retainedImageUrls !== undefined) {
+  if (body.images !== undefined) {
+    const existingImages = body.retainedImageUrls !== undefined
+      ? existingProduct?.images
+        ?.filter((item) => new Set(body.retainedImageUrls).has(item.url))
+        .map((item) => item.toObject?.() ?? item) || []
+      : existingProduct?.images?.map((item) => item.toObject?.() ?? item) || [];
+    payload.images = existingProduct ? [...existingImages, ...body.images] : body.images;
+  } else if (body.retainedImageUrls !== undefined) {
     const retainedUrls = new Set(body.retainedImageUrls);
     payload.images = (existingProduct?.images || [])
       .filter((item) => retainedUrls.has(item.url))
       .map((item) => item.toObject?.() ?? item);
-  } else if (body.images !== undefined) {
-    payload.images = body.images;
   }
   if (body.media !== undefined) {
     const existingMedia = body.retainedMediaUrls !== undefined
