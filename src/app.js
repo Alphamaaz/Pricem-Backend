@@ -38,9 +38,17 @@ app.use(cors({
   credentials: true,
 }));
 app.use(compression());
+const paymentsEnabled = process.env.PAYMENTS_ENABLED === 'true';
+
 // Paystack signatures are computed from the exact raw request bytes. This route
 // must be registered before express.json() transforms the body.
-app.post('/api/v1/payments/webhook', express.raw({ type: 'application/json', limit: '1mb' }), paystackWebhook);
+app.post(
+  '/api/v1/payments/webhook',
+  express.raw({ type: 'application/json', limit: '1mb' }),
+  paymentsEnabled
+    ? paystackWebhook
+    : (_req, res) => res.status(503).json({ message: 'Platform payments are not available yet' }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -99,7 +107,12 @@ app.use('/api/v1/wishlist', wishlistRoutes);
 app.use('/api/v1/offers', offersRoutes);
 app.use('/api/v1/orders', ordersRoutes);
 app.use('/api/v1/chat', chatRoutes);
-app.use('/api/v1/payments', paymentsRoutes);
+app.use(
+  '/api/v1/payments',
+  paymentsEnabled
+    ? paymentsRoutes
+    : (_req, res) => res.status(503).json({ message: 'Platform payments are coming soon. Arrange payment directly after inspection.' }),
+);
 app.use('/api/v1/disputes', disputesRoutes);
 app.use('/api/v1/payouts', payoutsRoutes);
 app.use('/api/v1/notifications', notificationsRoutes);

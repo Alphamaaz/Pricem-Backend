@@ -1,9 +1,11 @@
 import Product from '../products/product.model.js';
 import Conversation from './conversation.model.js';
 import Message from './message.model.js';
+import Order from '../orders/order.model.js';
 import { findBlockedContent } from './content-filter.service.js';
 import {
   getOrCreateListingConversation,
+  ensureOrderWorkspaceForOrder,
   isConversationParticipant,
   validObjectId,
 } from './chat.service.js';
@@ -133,8 +135,14 @@ export async function markConversationRead(req, res, next) {
 export async function getOrderConversation(req, res, next) {
   try {
     if (!validObjectId(req.params.orderId)) return res.status(400).json({ message: 'Invalid order id' });
-    const conversation = await Conversation.findOne({ order: req.params.orderId });
-    if (!conversation) return res.status(404).json({ message: 'Order workspace not found' });
+    let conversation = await Conversation.findOne({ order: req.params.orderId });
+    if (!conversation) {
+      const order = await Order.findById(req.params.orderId);
+      if (!order) return res.status(404).json({ message: 'Order not found' });
+      const isParticipant = order.buyer.equals(req.user._id) || order.seller.equals(req.user._id);
+      if (!isParticipant) return res.status(403).json({ message: 'You cannot access this order workspace' });
+      conversation = await ensureOrderWorkspaceForOrder(order);
+    }
     if (!isConversationParticipant(conversation, req.user._id)) {
       return res.status(403).json({ message: 'You cannot access this order workspace' });
     }
