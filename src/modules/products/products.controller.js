@@ -45,9 +45,13 @@ function buildProductPayload(body, user, existingProduct) {
       payload.minPrice = body.minPrice;
     }
   } else {
-    if (body.price !== undefined) payload.price = body.price;
+    if (body.price !== undefined || body.originalPrice !== undefined) {
+      payload.price = body.price !== undefined ? body.price : body.originalPrice;
+    }
     if (body.minPrice !== undefined) payload.minPrice = body.minPrice;
-    if (body.stock !== undefined) payload.stock = body.stock;
+    if (body.stock !== undefined || body.stockQuantity !== undefined) {
+      payload.stock = body.stock !== undefined ? body.stock : body.stockQuantity;
+    }
     if (body.variants !== undefined) payload.variants = body.variants;
   }
   if (body.condition !== undefined) payload.condition = body.condition;

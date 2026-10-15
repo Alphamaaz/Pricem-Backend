@@ -78,8 +78,10 @@ const productFieldsSchema = z.object({
   title: z.string().trim().min(1, 'Listing title is required'),
   category: z.string().trim().toLowerCase().min(1, 'Category is required'),
   price: z.coerce.number().min(0, 'Price cannot be negative').optional(),
+  originalPrice: z.coerce.number().min(0, 'Price cannot be negative').optional(),
   minPrice: z.coerce.number().min(0, 'Minimum price cannot be negative').optional(),
   stock: z.coerce.number().int().min(0, 'Stock cannot be negative').optional(),
+  stockQuantity: z.coerce.number().int().min(0, 'Stock cannot be negative').optional(),
   condition: z.enum(['new', 'used'], { message: 'Condition must be new or used' }),
   brand: z.string().trim().max(100).optional(),
   warranty: z.string().trim().max(100).optional(),
@@ -102,8 +104,10 @@ const productFieldsSchema = z.object({
 
 export const createProductSchema = productFieldsSchema.superRefine((data, ctx) => {
   const hasVariants = Array.isArray(data.variants) && data.variants.length > 0;
+  const effectivePrice = data.price ?? data.originalPrice;
+  const effectiveStock = data.stock ?? data.stockQuantity;
 
-  if (!hasVariants && data.price === undefined) {
+  if (!hasVariants && effectivePrice === undefined) {
     ctx.addIssue({
       code: 'custom',
       path: ['price'],
@@ -111,7 +115,7 @@ export const createProductSchema = productFieldsSchema.superRefine((data, ctx) =
     });
   }
 
-  if (!hasVariants && data.stock === undefined) {
+  if (!hasVariants && effectiveStock === undefined) {
     ctx.addIssue({
       code: 'custom',
       path: ['stock'],
@@ -120,7 +124,8 @@ export const createProductSchema = productFieldsSchema.superRefine((data, ctx) =
   }
 }).refine((data) => {
   const hasVariants = Array.isArray(data.variants) && data.variants.length > 0;
-  return hasVariants || data.price === undefined || data.minPrice === undefined || data.minPrice <= data.price;
+  const effectivePrice = data.price ?? data.originalPrice;
+  return hasVariants || effectivePrice === undefined || data.minPrice === undefined || data.minPrice <= effectivePrice;
 }, {
   message: 'Minimum price cannot be greater than price',
   path: ['minPrice'],
@@ -130,11 +135,14 @@ export const updateProductSchema = productFieldsSchema.partial().extend({
   status: z.enum(['active', 'inactive', 'sold']).optional(),
 }).refine((data) => Object.keys(data).length > 0, {
   message: 'At least one field is required',
-}).refine((data) => (
-  data.price === undefined ||
-  data.minPrice === undefined ||
-  data.minPrice <= data.price
-), {
+}).refine((data) => {
+  const effectivePrice = data.price ?? data.originalPrice;
+  return (
+    effectivePrice === undefined ||
+    data.minPrice === undefined ||
+    data.minPrice <= effectivePrice
+  );
+}, {
   message: 'Minimum price cannot be greater than listing price',
   path: ['minPrice'],
 });
