@@ -97,7 +97,7 @@ const productFieldsSchema = z.object({
   media: z.array(mediaSchema).max(7, 'Add at most 7 gallery files; the cover makes 8 total').optional(),
   retainedMediaUrls: retainedUrlsSchema,
   retainedImageUrls: retainedUrlsSchema,
-  deliveryMode: z.enum(['seller_included', 'buyer_pays_externally']),
+  deliveryMode: z.enum(['seller_included', 'buyer_pays_externally']).default('buyer_pays_externally').optional(),
   estimatedDeliveryDays: z.string().trim().max(100).optional(),
   deliveryDetails: z.string().trim().max(500).optional(),
 });

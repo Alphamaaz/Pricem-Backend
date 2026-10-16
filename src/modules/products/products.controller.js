@@ -116,7 +116,8 @@ function buildProductPayload(body, user, existingProduct) {
   if (
     body.deliveryMode !== undefined ||
     body.estimatedDeliveryDays !== undefined ||
-    body.deliveryDetails !== undefined
+    body.deliveryDetails !== undefined ||
+    !existingProduct
   ) {
     payload.delivery = {
       mode: body.deliveryMode ?? existingProduct?.delivery?.mode ?? 'buyer_pays_externally',
