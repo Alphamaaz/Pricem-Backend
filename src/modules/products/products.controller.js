@@ -94,6 +94,22 @@ function buildProductPayload(body, user, existingProduct) {
       .filter((item) => retainedUrls.has(item.url))
       .map((item) => item.toObject?.() ?? item);
   }
+  if (Array.isArray(payload.images)) {
+    const seenImageUrls = new Set();
+    payload.images = payload.images.filter((item) => {
+      if (!item?.url || seenImageUrls.has(item.url)) return false;
+      seenImageUrls.add(item.url);
+      return true;
+    });
+  }
+  if (Array.isArray(payload.media)) {
+    const seenMediaUrls = new Set();
+    payload.media = payload.media.filter((item) => {
+      if (!item?.url || seenMediaUrls.has(item.url)) return false;
+      seenMediaUrls.add(item.url);
+      return true;
+    });
+  }
   if (body.status !== undefined) payload.status = body.status;
   if (body.isFeatured !== undefined) payload.isFeatured = body.isFeatured;
 
