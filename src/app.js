@@ -97,10 +97,12 @@ import notificationsRoutes from './modules/notifications/notifications.routes.js
 import reviewsRoutes from './modules/reviews/reviews.routes.js';
 import promotionsRoutes from './modules/promotions/promotions.routes.js';
 import questionsRoutes from './modules/questions/questions.routes.js';
+import categoriesRoutes from './modules/categories/category.routes.js';
 
 app.use('/api/v1/auth',  authRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/categories', categoriesRoutes);
 app.use('/api/v1/products', productsRoutes);
 app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/wishlist', wishlistRoutes);
@@ -111,7 +113,7 @@ app.use(
   '/api/v1/payments',
   paymentsEnabled
     ? paymentsRoutes
-    : (_req, res) => res.status(503).json({ message: 'Platform payments are coming soon. Arrange payment directly after inspection.' }),
+    : (_req, res) => res.status(503).json({ message: 'Platform payments are not supported. Arrange payment directly after inspection.' }),
 );
 app.use('/api/v1/disputes', disputesRoutes);
 app.use('/api/v1/payouts', payoutsRoutes);
