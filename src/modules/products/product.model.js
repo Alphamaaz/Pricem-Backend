@@ -115,4 +115,5 @@ productSchema.index({ title: 'text', description: 'text', category: 'text' });
 productSchema.index({ status: 1, stock: 1, isFeatured: -1, salesCount: -1, ratingAverage: -1, createdAt: -1 });
 
 const Product = mongoose.model('Product', productSchema);
+export { Product };
 export default Product;

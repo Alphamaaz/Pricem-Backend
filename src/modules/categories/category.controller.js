@@ -1,5 +1,5 @@
 import { Category, DEFAULT_CATEGORIES } from './category.model.js';
-import { Product } from '../products/product.model.js';
+import Product from '../products/product.model.js';
 
 function slugify(text) {
   return text
