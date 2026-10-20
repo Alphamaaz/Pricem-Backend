@@ -7,6 +7,7 @@ import { ensureOrderWorkspaceForOrder } from '../chat/chat.service.js';
 import Order from '../orders/order.model.js';
 import Cart from '../cart/cart.model.js';
 import { emitToUser } from '../../config/socket.js';
+import { sendNotificationToUser } from '../notifications/firebase.service.js';
 
 const OPEN_OFFER_STATUSES = ['pending', 'countered'];
 
@@ -96,6 +97,42 @@ function assertOpenOffer(offer, res) {
 function notifyOfferRecipient(userId, offer, action) {
   emitToUser(userId, 'offer:changed', { offerId: String(offer._id), action });
   emitToUser(userId, 'badges:changed', { reason: 'offer' });
+
+  const priceStr = `₦${(offer.currentPrice || 0).toLocaleString()}`;
+  let title = `Price Am Offer: ${action}`;
+  let body = `Update on offer for ${offer.productTitle}`;
+  let type = 'system';
+
+  if (action === 'submitted') {
+    title = `New Price Am Offer: ${priceStr}`;
+    body = `You received a new offer of ${priceStr} on ${offer.productTitle}`;
+    type = 'offer_received';
+  } else if (action === 'countered') {
+    title = `Counter Offer: ${priceStr}`;
+    body = `A counter offer of ${priceStr} was proposed for ${offer.productTitle}`;
+    type = 'offer_countered';
+  } else if (action === 'accepted') {
+    title = `Offer Accepted! 🎉`;
+    body = `The offer of ${priceStr} for ${offer.productTitle} has been accepted!`;
+    type = 'offer_accepted';
+  } else if (action === 'rejected') {
+    title = `Offer Declined`;
+    body = `The offer of ${priceStr} for ${offer.productTitle} was declined.`;
+    type = 'offer_rejected';
+  }
+
+  sendNotificationToUser(userId, {
+    title,
+    body,
+    type,
+    data: {
+      type: 'offer',
+      action,
+      offerId: String(offer._id),
+      productId: String(offer.product),
+      orderId: offer.order ? String(offer.order) : '',
+    },
+  }).catch((err) => console.warn('[Offer] Failed to send push notification:', err.message));
 }
 
 // POST /api/v1/offers

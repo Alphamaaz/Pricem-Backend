@@ -10,6 +10,7 @@ import {
   validObjectId,
 } from './chat.service.js';
 import { emitToUser } from '../../config/socket.js';
+import { sendNotificationToUser } from '../notifications/firebase.service.js';
 
 async function findParticipantConversation(id, userId) {
   const conversation = await Conversation.findById(id);
@@ -230,6 +231,23 @@ export async function sendMessage(req, res, next) {
     emitToUser(recipientId, 'badges:changed', { reason: 'new-message' });
     emitToUser(recipientId, 'conversation:changed', { conversationId: String(result.conversation._id) });
     emitToUser(req.user._id, 'conversation:changed', { conversationId: String(result.conversation._id) });
+
+    // Send Firebase push notification & save in-app notification
+    const senderName = (req.user.activeRole === 'seller' && req.user.sellerProfile?.storeName)
+      ? req.user.sellerProfile.storeName
+      : req.user.fullName;
+
+    sendNotificationToUser(recipientId, {
+      title: `Message from ${senderName}`,
+      body: message.text.slice(0, 150),
+      type: 'chat',
+      data: {
+        type: 'chat',
+        conversationId: String(result.conversation._id),
+        senderId: String(req.user._id),
+        messageId: String(message._id),
+      },
+    }).catch((err) => console.warn('[Chat] Failed to send push notification:', err.message));
 
     res.status(201).json({ message: 'Message sent', chatMessage: message });
   } catch (err) {

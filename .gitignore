@@ -15,3 +15,7 @@ Thumbs.db
 # keep the directory structure with .gitkeep but ignore its contents.
 public/uploads/**/*
 !public/uploads/**/.gitkeep
+
+# Firebase service account credentials (never commit real private keys)
+firebase-sdk.json
+!firebase-sdk.example.json

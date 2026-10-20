@@ -6,6 +6,7 @@ import Cart from '../cart/cart.model.js';
 import { createOrdersFromCart } from './orders.service.js';
 import { closeOrderWorkspace, recordOrderSystemEvent } from '../chat/chat.service.js';
 import { ensureEligiblePayout } from '../payouts/payouts.service.js';
+import { sendNotificationToUser } from '../notifications/firebase.service.js';
 
 function validObjectId(id) {
   return mongoose.Types.ObjectId.isValid(id);
@@ -51,6 +52,25 @@ export async function checkoutCart(req, res, next) {
     }
 
     const orders = await createOrdersFromCart(cart, req.body.shippingAddress);
+
+    // Push notifications for sellers and buyer
+    for (const order of orders) {
+      sendNotificationToUser(order.seller, {
+        title: 'New Order Received! 🛍️',
+        body: `New order #${order.orderNumber || order._id} received for ₦${(order.totalAmount || 0).toLocaleString()}`,
+        type: 'order_created',
+        data: { type: 'order', orderId: String(order._id) },
+      }).catch((err) => console.warn('[Order] Failed to notify seller:', err.message));
+    }
+    if (orders.length > 0) {
+      sendNotificationToUser(req.user._id, {
+        title: 'Order Confirmed! 📦',
+        body: `Your order #${orders[0].orderNumber || orders[0]._id} has been placed successfully`,
+        type: 'order_created',
+        data: { type: 'order', orderId: String(orders[0]._id) },
+      }).catch((err) => console.warn('[Order] Failed to notify buyer:', err.message));
+    }
+
     res.status(201).json({ message: 'Order created from cart', orders });
   } catch (err) {
     next(err);
@@ -67,6 +87,14 @@ async function completeOrder(order, actor, actorRole, confirmationMessage) {
   await order.save();
   await closeOrderWorkspace(order._id);
   await recordOrderSystemEvent(order._id, `${confirmationMessage} This order is complete and the workspace is now read-only.`);
+
+  sendNotificationToUser(order.seller, {
+    title: 'Order Completed! 🎉',
+    body: `Order #${order.orderNumber || order._id} is confirmed completed.`,
+    type: 'order_completed',
+    data: { type: 'order', orderId: String(order._id), status: 'completed' },
+  }).catch((err) => console.warn('[Order] Failed to notify seller on completion:', err.message));
+
   return payout;
 }
 
@@ -302,6 +330,14 @@ export async function startProcessing(req, res, next) {
     addTimeline(order, 'processing_started', req.user, 'seller', 'Seller started preparing the order.');
     await order.save();
     await recordOrderSystemEvent(order._id, 'Seller started preparing the order.');
+
+    sendNotificationToUser(order.buyer, {
+      title: 'Order is Being Prepared 📦',
+      body: `The seller has started preparing your order #${order.orderNumber || order._id}`,
+      type: 'order_processing',
+      data: { type: 'order', orderId: String(order._id), status: 'processing' },
+    }).catch((err) => console.warn('[Order] Failed to notify buyer on processing:', err.message));
+
     res.json({ message: 'Order marked as processing', order });
   } catch (err) {
     next(err);
@@ -336,6 +372,14 @@ export async function markShipped(req, res, next) {
     addTimeline(order, 'shipped', req.user, 'seller', message);
     await order.save();
     await recordOrderSystemEvent(order._id, message);
+
+    sendNotificationToUser(order.buyer, {
+      title: 'Order Shipped! 🚚',
+      body: `Your order #${order.orderNumber || order._id} has been dispatched with ${req.body.courierName}.${trackingText}`,
+      type: 'order_shipped',
+      data: { type: 'order', orderId: String(order._id), status: 'shipped' },
+    }).catch((err) => console.warn('[Order] Failed to notify buyer on shipment:', err.message));
+
     res.json({ message: 'Shipment recorded', order });
   } catch (err) {
     next(err);
@@ -358,6 +402,14 @@ export async function markDelivered(req, res, next) {
     addTimeline(order, 'marked_delivered', req.user, 'seller', 'Seller marked the shipment delivered. Awaiting buyer confirmation.');
     await order.save();
     await recordOrderSystemEvent(order._id, 'Seller marked the shipment delivered. Buyer confirmation is now required.');
+
+    sendNotificationToUser(order.buyer, {
+      title: 'Order Marked as Delivered 📍',
+      body: `Your order #${order.orderNumber || order._id} was marked as delivered. Please inspect and confirm receipt.`,
+      type: 'order_delivered',
+      data: { type: 'order', orderId: String(order._id), status: 'delivered' },
+    }).catch((err) => console.warn('[Order] Failed to notify buyer on delivery:', err.message));
+
     res.json({ message: 'Order marked delivered', order });
   } catch (err) {
     next(err);

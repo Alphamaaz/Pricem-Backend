@@ -43,8 +43,13 @@ const userSchema = new mongoose.Schema({
   passwordResetToken:   { type: String, select: false },
   passwordResetExpires: { type: Date, select: false },
 
-  // Refresh token (stored hashed)
-  refreshToken: { type: String, select: false },
+  // Push Notification FCM Device Tokens
+  fcmTokens: [{
+    token: { type: String, required: true },
+    platform: { type: String, enum: ['android', 'ios', 'web', 'unknown'], default: 'unknown' },
+    deviceId: { type: String },
+    updatedAt: { type: Date, default: Date.now },
+  }],
 
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });
