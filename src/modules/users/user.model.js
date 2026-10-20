@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 const sellerProfileSchema = new mongoose.Schema({
   storeName:    { type: String, trim: true },
   storeSlug:    { type: String, trim: true, lowercase: true },
+  storeImage:   { type: String, trim: true, default: '' },
   description:  { type: String, trim: true },
   payoutDetails: {
     bankName:      { type: String, trim: true },
@@ -25,6 +26,7 @@ const userSchema = new mongoose.Schema({
   email:    { type: String, required: true, unique: true, lowercase: true, trim: true },
   contactNumber: { type: String, required: true, trim: true },
   password: { type: String, required: true, minlength: 6, select: false },
+  profileImage: { type: String, trim: true, default: '' },
 
   // Dual-role system
   roles:      { type: [String], enum: ['buyer', 'seller', 'admin'], default: ['buyer'] },

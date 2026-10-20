@@ -247,12 +247,14 @@ export async function getProductById(req, res, next) {
     );
     if (!product) return res.status(404).json({ message: 'Product not found' });
 
-    const seller = await User.findById(product.seller).select('sellerProfile.ratingAverage sellerProfile.ratingCount contactNumber fullName createdAt').lean();
+    const seller = await User.findById(product.seller).select('sellerProfile.ratingAverage sellerProfile.ratingCount sellerProfile.storeImage profileImage contactNumber fullName createdAt').lean();
     const productJson = product.toObject();
     productJson.sellerRatingAverage = seller?.sellerProfile?.ratingAverage || 0;
     productJson.sellerRatingCount = seller?.sellerProfile?.ratingCount || 0;
     productJson.sellerPhone = seller?.contactNumber || null;
     productJson.sellerJoinedAt = seller?.createdAt || null;
+    productJson.sellerStoreImage = seller?.sellerProfile?.storeImage || null;
+    productJson.sellerProfileImage = seller?.profileImage || null;
     res.json({ product: productJson });
   } catch (err) {
     next(err);

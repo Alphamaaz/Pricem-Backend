@@ -56,7 +56,7 @@ export async function applyToSell(req, res, next) {
       return res.status(400).json({ message: 'You are already an active seller' });
     }
 
-    const { storeName, storeSlug: customSlug, description, bankName, accountNumber, accountName } = req.body;
+    const { storeName, storeSlug: customSlug, storeImage, description, bankName, accountNumber, accountName } = req.body;
     const baseToSlugify = customSlug && customSlug.trim() ? customSlug : storeName;
     const storeSlug = await generateUniqueStoreSlug(baseToSlugify);
 
@@ -68,6 +68,7 @@ export async function applyToSell(req, res, next) {
     user.sellerProfile = {
       storeName: storeName.trim(),
       storeSlug,
+      storeImage: (storeImage || '').trim(),
       description: (description || '').trim(),
       payoutDetails: {
         bankName: (bankName || '').trim(),
@@ -106,12 +107,18 @@ export async function getProfile(req, res) {
 // PATCH /api/v1/users/me
 export async function updateProfile(req, res, next) {
   try {
-    const { fullName, contactNumber, description, bankName, accountNumber, accountName } = req.body;
+    const { fullName, contactNumber, profileImage, storeImage, description, bankName, accountNumber, accountName } = req.body;
     const user = req.user;
     if (fullName) user.fullName = fullName;
     if (contactNumber) user.contactNumber = contactNumber;
+    if (profileImage !== undefined) {
+      user.profileImage = (profileImage || '').trim();
+    }
 
     if (user.sellerProfile) {
+      if (storeImage !== undefined) {
+        user.sellerProfile.storeImage = (storeImage || '').trim();
+      }
       if (description !== undefined) user.sellerProfile.description = description;
       if (bankName || accountNumber || accountName) {
         user.sellerProfile.payoutDetails = {

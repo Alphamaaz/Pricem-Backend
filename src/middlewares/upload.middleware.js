@@ -8,9 +8,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const productUploadDir = path.join(__dirname, '../../public/uploads/products');
 const orderEvidenceUploadDir = path.join(__dirname, '../../public/uploads/order-evidence');
+const profileUploadDir = path.join(__dirname, '../../public/uploads/profiles');
+const storeUploadDir = path.join(__dirname, '../../public/uploads/stores');
 
 fs.mkdirSync(productUploadDir, { recursive: true });
 fs.mkdirSync(orderEvidenceUploadDir, { recursive: true });
+fs.mkdirSync(profileUploadDir, { recursive: true });
+fs.mkdirSync(storeUploadDir, { recursive: true });
 
 const imageMimeTypes = new Set([
   'image/jpeg',
@@ -230,3 +234,66 @@ export function uploadOrderEvidence(req, res, next) {
     }
   });
 }
+
+const userMediaStorage = multer.diskStorage({
+  destination: (_req, file, cb) => {
+    if (file.fieldname === 'storeImage') {
+      cb(null, storeUploadDir);
+    } else {
+      cb(null, profileUploadDir);
+    }
+  },
+  filename: (_req, file, cb) => {
+    const originalExt = path.extname(file.originalname).toLowerCase();
+    const extByMime = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+      'image/gif': '.gif',
+    };
+    const ext = extByMime[file.mimetype] || originalExt || '.jpg';
+    const prefix = file.fieldname === 'storeImage' ? 'store' : 'profile';
+    cb(null, `${prefix}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
+  },
+});
+
+const userMediaUploader = multer({
+  storage: userMediaStorage,
+  limits: { fileSize: 10 * 1024 * 1024, files: 2 },
+  fileFilter: (_req, file, cb) => {
+    if (!imageMimeTypes.has(file.mimetype)) {
+      return cb(new Error(`${file.fieldname === 'storeImage' ? 'Store' : 'Profile'} image must be a JPEG, PNG, WebP, or GIF`));
+    }
+    cb(null, true);
+  },
+});
+
+export function uploadUserMedia(req, res, next) {
+  userMediaUploader.fields([
+    { name: 'profileImage', maxCount: 1 },
+    { name: 'storeImage', maxCount: 1 },
+  ])(req, res, (err) => {
+    if (err) return res.status(422).json({ message: getUploadErrorMessage(err) });
+    try {
+      const files = [];
+      if (req.files?.profileImage) files.push(...req.files.profileImage);
+      if (req.files?.storeImage) files.push(...req.files.storeImage);
+      for (const file of files) validateUploadedFile(file);
+
+      if (req.files?.profileImage?.[0]) {
+        req.body.profileImage = `/uploads/profiles/${req.files.profileImage[0].filename}`;
+      }
+      if (req.files?.storeImage?.[0]) {
+        req.body.storeImage = `/uploads/stores/${req.files.storeImage[0].filename}`;
+      }
+      next();
+    } catch (validationError) {
+      const files = [];
+      if (req.files?.profileImage) files.push(...req.files.profileImage);
+      if (req.files?.storeImage) files.push(...req.files.storeImage);
+      for (const file of files) fs.rmSync(file.path, { force: true });
+      res.status(422).json({ message: validationError.message });
+    }
+  });
+}
+
