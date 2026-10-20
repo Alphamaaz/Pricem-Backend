@@ -249,6 +249,7 @@ export async function getProductById(req, res, next) {
 
     const seller = await User.findById(product.seller).select('sellerProfile.ratingAverage sellerProfile.ratingCount sellerProfile.storeImage profileImage contactNumber fullName createdAt').lean();
     const productJson = product.toObject();
+    productJson.sellerFullName = seller?.fullName || null;
     productJson.sellerRatingAverage = seller?.sellerProfile?.ratingAverage || 0;
     productJson.sellerRatingCount = seller?.sellerProfile?.ratingCount || 0;
     productJson.sellerPhone = seller?.contactNumber || null;
