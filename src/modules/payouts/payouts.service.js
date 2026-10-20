@@ -11,7 +11,7 @@ export async function ensureEligiblePayout(order) {
   const payout = await SellerPayout.findOneAndUpdate(
     { order: order._id },
     { $setOnInsert: { payment: order.payment, seller: order.seller, originalAmountKobo, amountKobo, status: amountKobo === 0 ? 'cancelled' : 'eligible' } },
-    { new: true, upsert: true, setDefaultsOnInsert: true },
+    { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true },
   );
   order.payout = payout._id;
   order.payoutStatus = payout.status;

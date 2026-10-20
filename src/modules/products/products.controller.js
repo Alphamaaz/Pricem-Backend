@@ -243,7 +243,7 @@ export async function getProductById(req, res, next) {
     const product = await Product.findOneAndUpdate(
       { _id: req.params.id, status: 'active' },
       { $inc: { viewsCount: 1 } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!product) return res.status(404).json({ message: 'Product not found' });
 

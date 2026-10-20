@@ -40,7 +40,7 @@ export async function addWishlistItem(req, res, next) {
     const wishlist = await Wishlist.findOneAndUpdate(
       { user: req.user._id },
       { $addToSet: { items: { product: product._id } } },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
+      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true },
     ).populate('items.product');
 
     res.status(201).json({ message: 'Product added to wishlist', wishlist });
@@ -59,7 +59,7 @@ export async function removeWishlistItem(req, res, next) {
     const wishlist = await Wishlist.findOneAndUpdate(
       { user: req.user._id },
       { $pull: { items: { product: req.params.productId } } },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
+      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true },
     ).populate('items.product');
 
     res.json({ message: 'Product removed from wishlist', wishlist });
@@ -74,7 +74,7 @@ export async function clearWishlist(req, res, next) {
     const wishlist = await Wishlist.findOneAndUpdate(
       { user: req.user._id },
       { $set: { items: [] } },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
+      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true },
     );
 
     res.json({ message: 'Wishlist cleared', wishlist });

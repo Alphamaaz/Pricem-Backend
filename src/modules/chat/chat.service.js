@@ -23,7 +23,7 @@ export async function getOrCreateListingConversation({ buyer, seller, product })
         lastMessageAt: new Date(),
       },
     },
-    { new: true, upsert: true, setDefaultsOnInsert: true },
+    { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true },
   );
 }
 
@@ -74,7 +74,7 @@ export async function ensureOrderWorkspaceForOrder(order) {
     const transitioned = await Conversation.findOneAndUpdate(
       { _id: listingConversation._id, scope: 'listing', order: { $exists: false } },
       { $set: { scope: 'order', order: order._id, status: 'open', lastMessageAt: new Date() } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (transitioned) {
       await Message.create({

@@ -101,7 +101,7 @@ export async function markNotificationAsRead(req, res, next) {
     const notification = await Notification.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id },
       { $set: { isRead: true, readAt: new Date() } },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!notification) {
       return res.status(404).json({ message: 'Notification not found' });
