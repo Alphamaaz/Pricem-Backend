@@ -189,16 +189,27 @@ export async function getOrderById(req, res, next) {
 export async function confirmDelivery(req, res, next) {
   try {
     const order = await loadOrder(req.params.id);
-    if (!isBuyer(order, req.user)) {
-      return res.status(403).json({ message: 'Only the buyer can confirm delivery' });
+    const buyerActing = isBuyer(order, req.user);
+    const sellerActing = isSeller(order, req.user);
+
+    if (!buyerActing && !sellerActing) {
+      return res.status(403).json({ message: 'Only the buyer or seller can complete this deal' });
     }
-    if (order.orderStatus !== 'delivered') {
-      return res.status(409).json({ message: 'Delivery can only be confirmed after the order is marked delivered' });
+    if (order.orderStatus === 'completed') {
+      return res.status(409).json({ message: 'This deal is already marked as completed' });
+    }
+    if (order.orderStatus === 'cancelled') {
+      return res.status(409).json({ message: 'This deal has been cancelled' });
     }
 
-    await completeOrder(order, req.user, 'buyer', 'Buyer confirmed successful delivery.');
+    const actorRole = buyerActing ? 'buyer' : 'seller';
+    const message = buyerActing
+      ? 'Buyer confirmed successful handover and item inspection.'
+      : 'Seller confirmed successful handover and payment.';
 
-    res.json({ message: 'Delivery confirmed. The order workspace is now read-only.', order });
+    await completeOrder(order, req.user, actorRole, message);
+
+    res.json({ message: 'Deal confirmed as completed!', order });
   } catch (err) {
     next(err);
   }
